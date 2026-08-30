@@ -167,20 +167,19 @@ try {
  $MainContent = New-Object System.Windows.Forms.Panel
  $MainContent.Dock = "Fill"
  $MainContent.BackColor = $C_Background
- $MainContent.Padding = New-Object System.Windows.Forms.Padding(25, 20, 25, 20)
+ $MainContent.Padding = New-Object System.Windows.Forms.Padding(25, 10, 25, 10) # Padding superior reducido
  $RootLayout.Controls.Add($MainContent, 1, 0)
 
  $TableLayout = New-Object System.Windows.Forms.TableLayoutPanel
  $TableLayout.Dock = "Fill"
  $TableLayout.RowCount = 3
-# FIX: Altura de la cabecera aumentada a 90 para que no se superponga el buscador
- $TableLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null
+ $TableLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 100))) | Out-Null # Altura 100
  $TableLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
  $TableLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 150))) | Out-Null
  $TableLayout.ColumnCount = 1
  $MainContent.Controls.Add($TableLayout)
 
-# Header (Título + Barra de Búsqueda)
+# Header
  $PanelHeader = New-Object System.Windows.Forms.Panel
  $PanelHeader.Dock = "Fill"
  $PanelHeader.BackColor = $C_Background
@@ -190,24 +189,31 @@ try {
  $LblHeader.Text = "Instalador de Aplicaciones"
  $LblHeader.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
  $LblHeader.ForeColor = $C_Text
- $LblHeader.Location = New-Object System.Drawing.Point(0, 5)
+ $LblHeader.Location = New-Object System.Drawing.Point(0, 0) # Subido a 0
  $LblHeader.AutoSize = $true
  $PanelHeader.Controls.Add($LblHeader)
 
+# FIX: Subpanel para evitar que el buscador se incruste con las tarjetas
+ $PanelSearch = New-Object System.Windows.Forms.Panel
+ $PanelSearch.Location = New-Object System.Drawing.Point(0, 45)
+ $PanelSearch.Size = New-Object System.Drawing.Size(500, 40)
+ $PanelSearch.BackColor = $C_Background
+ $PanelHeader.Controls.Add($PanelSearch)
+
  $txtSearch = New-Object System.Windows.Forms.TextBox
- $txtSearch.Location = New-Object System.Drawing.Point(0, 50)
- $txtSearch.Size = New-Object System.Drawing.Size(300, 30)
+ $txtSearch.Location = New-Object System.Drawing.Point(0, 5)
+ $txtSearch.Size = New-Object System.Drawing.Size(300, 31)
  $txtSearch.BackColor = $C_Card
- $txtSearch.ForeColor = $C_Text
+ $txtSearch.ForeColor = $C_TextSec
  $txtSearch.BorderStyle = "FixedSingle"
  $txtSearch.Font = New-Object System.Drawing.Font("Segoe UI", 10)
  $txtSearch.Text = "Buscar..."
- $PanelHeader.Controls.Add($txtSearch)
+ $PanelSearch.Controls.Add($txtSearch)
 
  $btnRec = New-Object System.Windows.Forms.Button
  $btnRec.Text = "Filtrar Recomendados"
- $btnRec.Location = New-Object System.Drawing.Point(310, 50)
- $btnRec.Size = New-Object System.Drawing.Size(170, 30)
+ $btnRec.Location = New-Object System.Drawing.Point(310, 5)
+ $btnRec.Size = New-Object System.Drawing.Size(170, 31)
  $btnRec.FlatStyle = "Flat"
  $btnRec.FlatAppearance.BorderSize = 1
  $btnRec.FlatAppearance.BorderColor = $C_Accent
@@ -215,7 +221,7 @@ try {
  $btnRec.ForeColor = $C_Accent
  $btnRec.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
  $btnRec.Cursor = "Hand"
- $PanelHeader.Controls.Add($btnRec)
+ $PanelSearch.Controls.Add($btnRec)
 
 # Contenido Dinámico (Cards)
  $DynPanel = New-Object System.Windows.Forms.FlowLayoutPanel
@@ -225,7 +231,7 @@ try {
  $DynPanel.WrapContents = $true
  $TableLayout.Controls.Add($DynPanel, 0, 1)
 
-# Footer (Consola + Barra Progreso + Botón)
+# Footer
  $PanelFooter = New-Object System.Windows.Forms.Panel
  $PanelFooter.Dock = "Fill"
  $PanelFooter.BackColor = $C_Background
@@ -273,8 +279,9 @@ function Set-AppModule {
     Clear-DynamicPanel
     $script:CurrentModule = "Apps"
     $LblHeader.Text = "Instalador de Aplicaciones"
-    $btnRec.Visible = $true
-    $txtSearch.Visible = $true
+    $PanelSearch.Visible = $true
+    $txtSearch.Text = "Buscar..."
+    $txtSearch.ForeColor = $C_TextSec
     
     $Categories = $AppCatalog | ForEach-Object { $_.Cat } | Select-Object -Unique
     
@@ -324,8 +331,7 @@ function Set-TweaksModule {
     Clear-DynamicPanel
     $script:CurrentModule = "Tweaks"
     $LblHeader.Text = "Optimizaciones y Tweaks"
-    $btnRec.Visible = $false
-    $txtSearch.Visible = $false
+    $PanelSearch.Visible = $false # Ocultar buscador en tweaks
     
     $Categories = $TweakCatalog | ForEach-Object { $_.Cat } | Select-Object -Unique
     
@@ -377,6 +383,9 @@ function Set-TweaksModule {
  $btnRec.Add_Click({ foreach($app in $AppCatalog) { $CurrentCheckboxes[$app.Name].Checked = $app.Rec } })
 
 # Filtro de Búsqueda Dinámico
+ $txtSearch.Add_GotFocus({ if ($txtSearch.Text -eq "Buscar...") { $txtSearch.Text = ""; $txtSearch.ForeColor = $C_Text } })
+ $txtSearch.Add_LostFocus({ if ($txtSearch.Text -eq "") { $txtSearch.Text = "Buscar..."; $txtSearch.ForeColor = $C_TextSec } })
+
  $txtSearch.Add_TextChanged({
     $searchText = $txtSearch.Text.ToLower()
     if ($txtSearch.Text -eq "Buscar...") { $searchText = "" }
@@ -398,9 +407,6 @@ function Set-TweaksModule {
         $card.Visible = $cardVisible
     }
 })
-
- $txtSearch.Add_GotFocus({ if ($txtSearch.Text -eq "Buscar...") { $txtSearch.Text = "" } })
- $txtSearch.Add_LostFocus({ if ($txtSearch.Text -eq "") { $txtSearch.Text = "Buscar..." } })
 
  $btnExecute.Add_Click({
     $visibleChecks = $CurrentCheckboxes.Values | Where-Object { $_.Checked -and $_.Visible }
