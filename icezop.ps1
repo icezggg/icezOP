@@ -8,7 +8,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# --- INYECCIÓN DE CONTROLES C# PERSONALIZADOS ---
+# --- INYECCIÓN DE CONTROLES C# (COMPATIBLE CON PS 5.1) ---
  $CSharpCode = @"
 using System;
 using System.Drawing;
@@ -17,10 +17,16 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 public class GradientButton : Button {
-    public Color Color1 { get; set; } = Color.FromArgb(139, 92, 246);
-    public Color Color2 { get; set; } = Color.FromArgb(165, 120, 255);
-    public int CornerRadius { get; set; } = 8;
-    public GradientButton() { this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 0; }
+    public Color Color1 { get; set; }
+    public Color Color2 { get; set; }
+    public int CornerRadius { get; set; }
+    public GradientButton() { 
+        this.Color1 = Color.FromArgb(139, 92, 246);
+        this.Color2 = Color.FromArgb(165, 120, 255);
+        this.CornerRadius = 8;
+        this.FlatStyle = FlatStyle.Flat; 
+        this.FlatAppearance.BorderSize = 0; 
+    }
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -39,8 +45,12 @@ public class GradientButton : Button {
 }
 
 public class ModernCheckBox : CheckBox {
-    public Color CheckColor { get; set; } = Color.FromArgb(139, 92, 246);
-    public ModernCheckBox() { this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 0; }
+    public Color CheckColor { get; set; }
+    public ModernCheckBox() { 
+        this.CheckColor = Color.FromArgb(139, 92, 246);
+        this.FlatStyle = FlatStyle.Flat; 
+        this.FlatAppearance.BorderSize = 0; 
+    }
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -70,8 +80,12 @@ public class ModernCheckBox : CheckBox {
 }
 
 public class ShadowLabel : Label {
-    public Color ShadowColor { get; set; } = Color.FromArgb(100, 0, 0, 0);
-    public int ShadowOffset { get; set; } = 2;
+    public Color ShadowColor { get; set; }
+    public int ShadowOffset { get; set; }
+    public ShadowLabel() {
+        this.ShadowColor = Color.FromArgb(100, 0, 0, 0);
+        this.ShadowOffset = 2;
+    }
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
@@ -197,7 +211,6 @@ try {
  $TitleBar.BackColor = $C_BgLayer
  $Sidebar.Controls.Add($TitleBar)
 
-# Logo con Sombra y Tipografía Cursiva
  $LblLogo = New-Object ShadowLabel
  $LblLogo.Text = "icezOP"
  $LblLogo.Font = New-Object System.Drawing.Font("Segoe Script", 22, [System.Drawing.FontStyle]::Bold)
@@ -267,7 +280,7 @@ try {
  $PanelHeader.BackColor = $C_BgBase
  $TableLayout.Controls.Add($PanelHeader, 0, 0)
 
-# Botones de Ventana (Minimizar / Cerrar)
+# Botones de Ventana
  $btnMin = New-Object System.Windows.Forms.Button
  $btnMin.Text = "—" ; $btnMin.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
  $btnMin.Location = New-Object System.Drawing.Point(730, 0); $btnMin.Size = New-Object System.Drawing.Size(45, 32)
@@ -304,7 +317,6 @@ try {
  $txtSearch.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 10); $txtSearch.Text = "Buscar..."
  $PanelSearch.Controls.Add($txtSearch)
 
-# Botón Recomendados con Degradado
  $btnRec = New-Object GradientButton
  $btnRec.Text = "Recomendados"
  $btnRec.Location = New-Object System.Drawing.Point(240, 5); $btnRec.Size = New-Object System.Drawing.Size(105, 25)
@@ -315,7 +327,6 @@ try {
  $btnRec.Add_MouseEnter({ $btnRec.Color1 = [System.Drawing.Color]::FromArgb(100, 60, 180); $btnRec.Color2 = [System.Drawing.Color]::FromArgb(140, 90, 220); $btnRec.Invalidate() })
  $btnRec.Add_MouseLeave({ $btnRec.Color1 = [System.Drawing.Color]::FromArgb(80, 50, 160); $btnRec.Color2 = [System.Drawing.Color]::FromArgb(120, 70, 200); $btnRec.Invalidate() })
 
-# Panel Dinámico con Scrollbar Oscura
  $DynPanel = New-Object DarkScrollPanel
  $DynPanel.Dock = "Fill"; $DynPanel.BackColor = $C_BgBase; $DynPanel.AutoScroll = $true; $DynPanel.WrapContents = $true
  $TableLayout.Controls.Add($DynPanel, 0, 1)
@@ -333,7 +344,6 @@ try {
  $ProgressBar.Dock = "Bottom"; $ProgressBar.Height = 4; $ProgressBar.Style = "Continuous"; $ProgressBar.ForeColor = $C_Accent; $ProgressBar.BackColor = $C_Card
  $PanelFooter.Controls.Add($ProgressBar)
 
-# Botón Ejecutar con Degradado y Hover
  $btnExecute = New-Object GradientButton
  $btnExecute.Text = "EJECUTAR"
  $btnExecute.Dock = "Bottom"
@@ -360,7 +370,7 @@ function Set-AppModule {
     foreach ($cat in $Categories) {
         $Card = New-Object System.Windows.Forms.Panel
         $Card.BackColor = $C_Card
-        $Card.Padding = New-Object System.Windows.Forms.Padding(20) # Padding aumentado
+        $Card.Padding = New-Object System.Windows.Forms.Padding(20)
         $Card.Margin = New-Object System.Windows.Forms.Padding(0, 0, 15, 15)
         $Card.AutoSize = $true; $Card.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
 
@@ -375,12 +385,12 @@ function Set-AppModule {
         $innerPanel.Location = New-Object System.Drawing.Point(20, 40); $innerPanel.FlowDirection = "TopDown"; $innerPanel.WrapContents = $false
 
         foreach ($app in $AppCatalog | Where-Object { $_.Cat -eq $cat }) {
-            $cb = New-Object ModernCheckBox # CheckBox Moderno C#
+            $cb = New-Object ModernCheckBox
             $cb.Text = $app.Name; $cb.Tag = $app.ID
-            $cb.Size = New-Object System.Drawing.Size(220, 30) # Más espacio vertical
+            $cb.Size = New-Object System.Drawing.Size(220, 30)
             $cb.ForeColor = $C_TextMain; $cb.BackColor = $C_Card
             $cb.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9)
-            $cb.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 5) # Separación entre items
+            $cb.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 5)
             $innerPanel.Controls.Add($cb)
             $script:CurrentCheckboxes[$app.Name] = $cb
         }
