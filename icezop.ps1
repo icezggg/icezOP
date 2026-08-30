@@ -8,7 +8,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# --- INYECCIÓN DE CONTROLES C# (COMPATIBLE CON PS 5.1) ---
+# --- INYECCIÓN DE CONTROLES C# PREMIUM ---
  $CSharpCode = @"
 using System;
 using System.Drawing;
@@ -30,7 +30,20 @@ public class GradientButton : Button {
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        Rectangle rect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
+        
+        // Sombra paralela sutil
+        Rectangle shadowRect = new Rectangle(0, 4, this.Width - 1, this.Height - 3);
+        using (GraphicsPath shadowPath = new GraphicsPath()) {
+            shadowPath.AddArc(shadowRect.X, shadowRect.Y, CornerRadius, CornerRadius, 180, 90);
+            shadowPath.AddArc(shadowRect.Right - CornerRadius, shadowRect.Y, CornerRadius, CornerRadius, 270, 90);
+            shadowPath.AddArc(shadowRect.Right - CornerRadius, shadowRect.Bottom - CornerRadius, CornerRadius, CornerRadius, 0, 90);
+            shadowPath.AddArc(shadowRect.X, shadowRect.Bottom - CornerRadius, CornerRadius, CornerRadius, 90, 90);
+            shadowPath.CloseFigure();
+            using (SolidBrush sb = new SolidBrush(Color.FromArgb(40, 0, 0, 0))) { g.FillPath(sb, shadowPath); }
+        }
+
+        // Botón principal
+        Rectangle rect = new Rectangle(0, 0, this.Width - 1, this.Height - 4);
         using (GraphicsPath path = new GraphicsPath()) {
             path.AddArc(rect.X, rect.Y, CornerRadius, CornerRadius, 180, 90);
             path.AddArc(rect.Right - CornerRadius, rect.Y, CornerRadius, CornerRadius, 270, 90);
@@ -79,18 +92,59 @@ public class ModernCheckBox : CheckBox {
     }
 }
 
-public class ShadowLabel : Label {
-    public Color ShadowColor { get; set; }
-    public int ShadowOffset { get; set; }
-    public ShadowLabel() {
-        this.ShadowColor = Color.FromArgb(100, 0, 0, 0);
-        this.ShadowOffset = 2;
-    }
+// Botón de Ventana Vectorial (Sin texto para evitar ???)
+public class WinButton : Button {
+    public bool IsClose { get; set; }
+    public WinButton() { this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 0; }
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics;
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-        using (SolidBrush b = new SolidBrush(ShadowColor)) { g.DrawString(this.Text, this.Font, b, new PointF(this.ShadowOffset, this.ShadowOffset)); }
-        using (SolidBrush b = new SolidBrush(this.ForeColor)) { g.DrawString(this.Text, this.Font, b, new PointF(0, 0)); }
+        g.Clear(this.BackColor);
+        if (IsClose && this.ClientRectangle.Contains(this.PointToClient(Cursor.Position))) {
+            g.FillRectangle(new SolidBrush(Color.FromArgb(232, 24, 24)), this.ClientRectangle);
+            using (Pen p = new Pen(Color.White, 2)) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26, 10, 16, 20); }
+        } else {
+            using (Pen p = new Pen(this.ForeColor, 2)) {
+                if (IsClose) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26, 10, 16, 20); }
+                else { g.DrawLine(p, 15, 15, 27, 15); } // Minimizar
+            }
+        }
+    }
+}
+
+// Botón de Menú Lateral con Icono Vectorial y Active State
+public class NavButton : Button {
+    public bool IsActive { get; set; }
+    public int IconType { get; set; } // 0=Apps, 1=Tweaks, 2=Drivers
+    public NavButton() { this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 0; this.DoubleBuffered = true; }
+    protected override void OnPaint(PaintEventArgs e) {
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.Clear(this.BackColor);
+        
+        if (IsActive) {
+            g.FillRectangle(new SolidBrush(Color.FromArgb(35, 35, 42)), this.ClientRectangle);
+            g.FillRectangle(new SolidBrush(Color.FromArgb(139, 92, 246)), new Rectangle(0, 5, 4, this.Height - 10));
+        }
+        
+        int iconX = 15;
+        int iconY = this.Height / 2 - 8;
+        Color iconColor = this.IsActive ? Color.FromArgb(165, 120, 255) : Color.FromArgb(140, 140, 150);
+        using (Pen p = new Pen(iconColor, 2)) {
+            if (IconType == 0) { // Apps (Cuadros)
+                g.DrawRectangle(p, iconX, iconY, 6, 6);
+                g.DrawRectangle(p, iconX+10, iconY, 6, 6);
+                g.DrawRectangle(p, iconX, iconY+10, 6, 6);
+                g.DrawRectangle(p, iconX+10, iconY+10, 6, 6);
+            } else if (IconType == 1) { // Tweaks (Engranaje simplificado)
+                g.DrawEllipse(p, iconX+2, iconY+2, 12, 12);
+                g.DrawEllipse(p, iconX+6, iconY+6, 4, 4);
+            } else if (IconType == 2) { // Drivers (Chip)
+                g.DrawRectangle(p, iconX+2, iconY, 12, 16);
+                g.DrawLine(p, iconX, iconY+4, iconX+2, iconY+4);
+                g.DrawLine(p, iconX+14, iconY+4, iconX+16, iconY+4);
+            }
+        }
+        TextRenderer.DrawText(g, this.Text, this.Font, new Rectangle(40, 0, this.Width-40, this.Height), this.ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
     }
 }
 
@@ -150,18 +204,16 @@ function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = 
 try {
     $AppCatalog = Invoke-RestMethod -Uri "$RepoURL/apps.json" -ErrorAction Stop
     $TweakCatalog = Invoke-RestMethod -Uri "$RepoURL/tweaks.json" -ErrorAction Stop
-    $DataSource = "GitHub"
 } catch {
     $localApps = "$PSScriptRoot\apps.json"
     $localTweaks = "$PSScriptRoot\tweaks.json"
     if (Test-Path $localApps -and Test-Path $localTweaks) {
         $AppCatalog = Get-Content -Path $localApps -Raw | ConvertFrom-Json
         $TweakCatalog = Get-Content -Path $localTweaks -Raw | ConvertFrom-Json
-        $DataSource = "Local"
     } else { [System.Windows.Forms.MessageBox]::Show("No se encontraron los JSON.", "Error", 0, 16); Exit }
 }
 
-# --- TEMA ICEZOP PREMIUM ---
+# --- TEMA ICEZOP ---
  $C_BgBase = [System.Drawing.Color]::FromArgb(15, 15, 18)
  $C_BgLayer = [System.Drawing.Color]::FromArgb(25, 25, 30)
  $C_Card = [System.Drawing.Color]::FromArgb(30, 30, 36)
@@ -211,13 +263,11 @@ try {
  $TitleBar.BackColor = $C_BgLayer
  $Sidebar.Controls.Add($TitleBar)
 
- $LblLogo = New-Object ShadowLabel
+ $LblLogo = New-Object System.Windows.Forms.Label
  $LblLogo.Text = "icezOP"
- $LblLogo.Font = New-Object System.Drawing.Font("Segoe Script", 22, [System.Drawing.FontStyle]::Bold)
+ $LblLogo.Font = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
  $LblLogo.ForeColor = $C_Accent
- $LblLogo.ShadowColor = [System.Drawing.Color]::FromArgb(50, 0, 0, 20)
- $LblLogo.ShadowOffset = 3
- $LblLogo.Location = New-Object System.Drawing.Point(20, 5)
+ $LblLogo.Location = New-Object System.Drawing.Point(20, 10)
  $LblLogo.AutoSize = $true
  $TitleBar.Controls.Add($LblLogo)
 
@@ -225,35 +275,63 @@ try {
  $TitleBar.Add_MouseMove({ if($script:DragInfo.Dragging){ $Form.Left += $_.X - $script:DragInfo.X; $Form.Top += $_.Y - $script:DragInfo.Y } })
  $TitleBar.Add_MouseUp({ $script:DragInfo.Dragging = $false })
 
- $btnModApps = New-Object System.Windows.Forms.Button
- $btnModApps.Text = "   Aplicaciones"
- $btnModApps.Location = New-Object System.Drawing.Point(15, 60)
- $btnModApps.Size = New-Object System.Drawing.Size(190, 40)
- $btnModApps.FlatStyle = "Flat"
- $btnModApps.FlatAppearance.BorderSize = 0
- $btnModApps.BackColor = $C_BgLayer
- $btnModApps.ForeColor = $C_TextSec
- $btnModApps.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
- $btnModApps.TextAlign = "MiddleLeft"
- $btnModApps.Cursor = "Hand"
+# Botones de Menú Vectoriales
+ $FontNav = New-Object System.Drawing.Font("Segoe UI Variable Text", 10, [System.Drawing.FontStyle]::Semibold)
+
+ $btnModApps = New-Object NavButton
+ $btnModApps.Text = "Aplicaciones"; $btnModApps.IconType = 0; $btnModApps.IsActive = $true
+ $btnModApps.Location = New-Object System.Drawing.Point(0, 60); $btnModApps.Size = New-Object System.Drawing.Size(220, 40)
+ $btnModApps.BackColor = $C_BgLayer; $btnModApps.ForeColor = $C_TextMain; $btnModApps.Font = $FontNav; $btnModApps.Cursor = "Hand"
  $Sidebar.Controls.Add($btnModApps)
 
- $btnModTweaks = New-Object System.Windows.Forms.Button
- $btnModTweaks.Text = "   Optimizaciones"
- $btnModTweaks.Location = New-Object System.Drawing.Point(15, 105)
- $btnModTweaks.Size = New-Object System.Drawing.Size(190, 40)
- $btnModTweaks.FlatStyle = "Flat"
- $btnModTweaks.FlatAppearance.BorderSize = 0
- $btnModTweaks.BackColor = $C_BgLayer
- $btnModTweaks.ForeColor = $C_TextSec
- $btnModTweaks.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
- $btnModTweaks.TextAlign = "MiddleLeft"
- $btnModTweaks.Cursor = "Hand"
+ $btnModTweaks = New-Object NavButton
+ $btnModTweaks.Text = "Tweaks"; $btnModTweaks.IconType = 1
+ $btnModTweaks.Location = New-Object System.Drawing.Point(0, 100); $btnModTweaks.Size = New-Object System.Drawing.Size(220, 40)
+ $btnModTweaks.BackColor = $C_BgLayer; $btnModTweaks.ForeColor = $C_TextSec; $btnModTweaks.Font = $FontNav; $btnModTweaks.Cursor = "Hand"
  $Sidebar.Controls.Add($btnModTweaks)
+
+ $btnModDrivers = New-Object NavButton
+ $btnModDrivers.Text = "Drivers"; $btnModDrivers.IconType = 2
+ $btnModDrivers.Location = New-Object System.Drawing.Point(0, 140); $btnModDrivers.Size = New-Object System.Drawing.Size(220, 40)
+ $btnModDrivers.BackColor = $C_BgLayer; $btnModDrivers.ForeColor = $C_TextSec; $btnModDrivers.Font = $FontNav; $btnModDrivers.Cursor = "Hand"
+ $Sidebar.Controls.Add($btnModDrivers)
+
+# Panel de Especificaciones de PC (Driver Booster Style)
+ $PanelSpecs = New-Object System.Windows.Forms.Panel
+ $PanelSpecs.Location = New-Object System.Drawing.Point(15, 490)
+ $PanelSpecs.Size = New-Object System.Drawing.Size(190, 130)
+ $PanelSpecs.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 25)
+ $Sidebar.Controls.Add($PanelSpecs)
+
+ $LblSpecsTitle = New-Object System.Windows.Forms.Label
+ $LblSpecsTitle.Text = "ESPECIFICACIONES PC"
+ $LblSpecsTitle.Font = New-Object System.Drawing.Font("Segoe UI", 7, [System.Drawing.FontStyle]::Bold)
+ $LblSpecsTitle.ForeColor = $C_Accent
+ $LblSpecsTitle.Location = New-Object System.Drawing.Point(10, 5)
+ $LblSpecsTitle.AutoSize = $true
+ $PanelSpecs.Controls.Add($LblSpecsTitle)
+
+# Obtener datos reales de la PC
+ $OSInfo = (Get-CimInstance Win32_OperatingSystem).Caption
+ $CPUInfo = (Get-CimInstance Win32_Processor).Name
+ $GPUInfo = (Get-CimInstance Win32_VideoController | Select-Object -First 1).Name
+ $RAMInfo = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 0)
+
+ $LblOS = New-Object System.Windows.Forms.Label; $LblOS.Text = "OS: $OSInfo"; $LblOS.Font = New-Object System.Drawing.Font("Segoe UI", 8); $LblOS.ForeColor = $C_TextSec; $LblOS.Location = New-Object System.Drawing.Point(10, 25); $LblOS.AutoSize = $true
+ $LblCPU = New-Object System.Windows.Forms.Label; $LblCPU.Text = "CPU: $CPUInfo"; $LblCPU.Font = New-Object System.Drawing.Font("Segoe UI", 8); $LblCPU.ForeColor = $C_TextSec; $LblCPU.Location = New-Object System.Drawing.Point(10, 50); $LblCPU.AutoSize = $true
+ $LblGPU = New-Object System.Windows.Forms.Label; $LblGPU.Text = "GPU: $GPUInfo"; $LblGPU.Font = New-Object System.Drawing.Font("Segoe UI", 8); $LblGPU.ForeColor = $C_TextSec; $LblGPU.Location = New-Object System.Drawing.Point(10, 75); $LblGPU.AutoSize = $true
+ $LblRAM = New-Object System.Windows.Forms.Label; $LblRAM.Text = "RAM: $RAMInfo GB"; $LblRAM.Font = New-Object System.Drawing.Font("Segoe UI", 8); $LblRAM.ForeColor = $C_TextSec; $LblRAM.Location = New-Object System.Drawing.Point(10, 100); $LblRAM.AutoSize = $true
+
+# Acortar textos si son muy largos para que entren en el panel
+if($LblOS.Width -gt 170){ $LblOS.Text = "OS: Windows 11 Pro" }
+if($LblCPU.Width -gt 170){ $LblCPU.Text = $LblCPU.Text.Substring(0, 25) + "..." }
+if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." }
+
+ $PanelSpecs.Controls.Add($LblOS); $PanelSpecs.Controls.Add($LblCPU); $PanelSpecs.Controls.Add($LblGPU); $PanelSpecs.Controls.Add($LblRAM)
 
  $LblStatus = New-Object System.Windows.Forms.Label
  $LblStatus.Text = "ESTADO: LISTO"
- $LblStatus.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 8, [System.Drawing.FontStyle]::Bold)
+ $LblStatus.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
  $LblStatus.ForeColor = $C_Accent
  $LblStatus.Location = New-Object System.Drawing.Point(20, 650)
  $LblStatus.AutoSize = $true
@@ -280,24 +358,23 @@ try {
  $PanelHeader.BackColor = $C_BgBase
  $TableLayout.Controls.Add($PanelHeader, 0, 0)
 
-# Botones de Ventana
- $btnMin = New-Object System.Windows.Forms.Button
- $btnMin.Text = "—" ; $btnMin.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
+# Botones de Ventana Vectoriales
+ $btnMin = New-Object WinButton
  $btnMin.Location = New-Object System.Drawing.Point(730, 0); $btnMin.Size = New-Object System.Drawing.Size(45, 32)
- $btnMin.FlatStyle = "Flat"; $btnMin.FlatAppearance.BorderSize = 0; $btnMin.BackColor = $C_BgBase; $btnMin.ForeColor = $C_TextSec; $btnMin.Cursor = "Hand"
+ $btnMin.BackColor = $C_BgBase; $btnMin.ForeColor = $C_TextSec; $btnMin.Cursor = "Hand"
  $PanelHeader.Controls.Add($btnMin)
  $btnMin.Add_Click({ $Form.WindowState = "Minimized" })
- $btnMin.Add_MouseEnter({ $btnMin.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 52) })
- $btnMin.Add_MouseLeave({ $btnMin.BackColor = $C_BgBase })
+ $btnMin.Add_MouseEnter({ $btnMin.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 52); $btnMin.Invalidate() })
+ $btnMin.Add_MouseLeave({ $btnMin.BackColor = $C_BgBase; $btnMin.Invalidate() })
 
- $btnClose = New-Object System.Windows.Forms.Button
- $btnClose.Text = "✕" ; $btnClose.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
+ $btnClose = New-Object WinButton
+ $btnClose.IsClose = $true
  $btnClose.Location = New-Object System.Drawing.Point(775, 0); $btnClose.Size = New-Object System.Drawing.Size(45, 32)
- $btnClose.FlatStyle = "Flat"; $btnClose.FlatAppearance.BorderSize = 0; $btnClose.BackColor = $C_BgBase; $btnClose.ForeColor = $C_TextSec; $btnClose.Cursor = "Hand"
+ $btnClose.BackColor = $C_BgBase; $btnClose.ForeColor = $C_TextSec; $btnClose.Cursor = "Hand"
  $PanelHeader.Controls.Add($btnClose)
  $btnClose.Add_Click({ $Form.Close() })
- $btnClose.Add_MouseEnter({ $btnClose.BackColor = $C_Red; $btnClose.ForeColor = [System.Drawing.Color]::White })
- $btnClose.Add_MouseLeave({ $btnClose.BackColor = $C_BgBase; $btnClose.ForeColor = $C_TextSec })
+ $btnClose.Add_MouseEnter({ $btnClose.Invalidate() })
+ $btnClose.Add_MouseLeave({ $btnClose.Invalidate() })
 
  $LblHeader = New-Object System.Windows.Forms.Label
  $LblHeader.Text = "Instalador de Aplicaciones"
@@ -321,16 +398,42 @@ try {
  $btnRec.Text = "Recomendados"
  $btnRec.Location = New-Object System.Drawing.Point(240, 5); $btnRec.Size = New-Object System.Drawing.Size(105, 25)
  $btnRec.Color1 = [System.Drawing.Color]::FromArgb(80, 50, 160); $btnRec.Color2 = [System.Drawing.Color]::FromArgb(120, 70, 200)
- $btnRec.ForeColor = [System.Drawing.Color]::White; $btnRec.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 8, [System.Drawing.FontStyle]::Bold)
+ $btnRec.ForeColor = [System.Drawing.Color]::White; $btnRec.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
  $btnRec.Cursor = "Hand"; $btnRec.CornerRadius = 6
  $PanelSearch.Controls.Add($btnRec)
  $btnRec.Add_MouseEnter({ $btnRec.Color1 = [System.Drawing.Color]::FromArgb(100, 60, 180); $btnRec.Color2 = [System.Drawing.Color]::FromArgb(140, 90, 220); $btnRec.Invalidate() })
  $btnRec.Add_MouseLeave({ $btnRec.Color1 = [System.Drawing.Color]::FromArgb(80, 50, 160); $btnRec.Color2 = [System.Drawing.Color]::FromArgb(120, 70, 200); $btnRec.Invalidate() })
 
+# --- CONTENEDORES DINÁMICOS ---
  $DynPanel = New-Object DarkScrollPanel
  $DynPanel.Dock = "Fill"; $DynPanel.BackColor = $C_BgBase; $DynPanel.AutoScroll = $true; $DynPanel.WrapContents = $true
  $TableLayout.Controls.Add($DynPanel, 0, 1)
 
+# Panel de Drivers (Oculto por defecto)
+ $PanelDrivers = New-Object System.Windows.Forms.Panel
+ $PanelDrivers.Dock = "Fill"; $PanelDrivers.BackColor = $C_BgBase; $PanelDrivers.Visible = $false
+ $TableLayout.Controls.Add($PanelDrivers, 0, 1)
+
+ $btnScanDrivers = New-Object GradientButton
+ $btnScanDrivers.Text = "ANALIZAR DRIVERS"
+ $btnScanDrivers.Size = New-Object System.Drawing.Size(300, 60)
+ $btnScanDrivers.Location = New-Object System.Drawing.Point(($PanelDrivers.Width - 300)/2, 100)
+ $btnScanDrivers.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnScanDrivers.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255)
+ $btnScanDrivers.ForeColor = [System.Drawing.Color]::White; $btnScanDrivers.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+ $btnScanDrivers.Cursor = "Hand"; $btnScanDrivers.CornerRadius = 10
+ $PanelDrivers.Controls.Add($btnScanDrivers)
+ $btnScanDrivers.Add_MouseEnter({ $btnScanDrivers.Color1 = [System.Drawing.Color]::FromArgb(159, 102, 246); $btnScanDrivers.Color2 = [System.Drawing.Color]::FromArgb(180, 140, 255); $btnScanDrivers.Invalidate() })
+ $btnScanDrivers.Add_MouseLeave({ $btnScanDrivers.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnScanDrivers.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnScanDrivers.Invalidate() })
+
+ $LblDriversInfo = New-Object System.Windows.Forms.Label
+ $LblDriversInfo.Text = "Haz clic en Analizar para buscar controladores desactualizados."
+ $LblDriversInfo.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+ $LblDriversInfo.ForeColor = $C_TextSec
+ $LblDriversInfo.Location = New-Object System.Drawing.Point(($PanelDrivers.Width - 400)/2, 170)
+ $LblDriversInfo.AutoSize = $true
+ $PanelDrivers.Controls.Add($LblDriversInfo)
+
+# --- FOOTER ---
  $PanelFooter = New-Object System.Windows.Forms.Panel
  $PanelFooter.Dock = "Fill"; $PanelFooter.BackColor = $C_BgBase
  $TableLayout.Controls.Add($PanelFooter, 0, 2)
@@ -359,11 +462,22 @@ try {
 
 function Clear-DynamicPanel { $DynPanel.Controls.Clear(); $script:CurrentCheckboxes = @{} }
 
+function Set-ModuleActive {
+    param($ActiveBtn)
+    $btnModApps.IsActive = $false; $btnModApps.ForeColor = $C_TextSec; $btnModApps.Invalidate()
+    $btnModTweaks.IsActive = $false; $btnModTweaks.ForeColor = $C_TextSec; $btnModTweaks.Invalidate()
+    $btnModDrivers.IsActive = $false; $btnModDrivers.ForeColor = $C_TextSec; $btnModDrivers.Invalidate()
+    
+    $ActiveBtn.IsActive = $true; $ActiveBtn.ForeColor = $C_TextMain; $ActiveBtn.Invalidate()
+}
+
 function Set-AppModule {
-    Clear-DynamicPanel
+    Set-ModuleActive $btnModApps
     $script:CurrentModule = "Apps"
+    $DynPanel.Visible = $true; $PanelDrivers.Visible = $false
+    $PanelSearch.Visible = $true; $btnExecute.Visible = $true
     $LblHeader.Text = "Instalador de Aplicaciones"
-    $PanelSearch.Visible = $true
+    Clear-DynamicPanel
     $txtSearch.Text = "Buscar..."; $txtSearch.ForeColor = $C_TextSec
     
     $Categories = $AppCatalog | ForEach-Object { $_.Cat } | Select-Object -Unique
@@ -376,7 +490,7 @@ function Set-AppModule {
 
         $LblCat = New-Object System.Windows.Forms.Label
         $LblCat.Text = $cat.ToUpper()
-        $LblCat.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9, [System.Drawing.FontStyle]::Bold)
+        $LblCat.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
         $LblCat.ForeColor = $C_TextSec; $LblCat.Location = New-Object System.Drawing.Point(20, 15); $LblCat.AutoSize = $true
         $Card.Controls.Add($LblCat)
 
@@ -387,9 +501,9 @@ function Set-AppModule {
         foreach ($app in $AppCatalog | Where-Object { $_.Cat -eq $cat }) {
             $cb = New-Object ModernCheckBox
             $cb.Text = $app.Name; $cb.Tag = $app.ID
-            $cb.Size = New-Object System.Drawing.Size(220, 30)
+            $cb.Size = New-Object System.Drawing.Size(200, 30)
             $cb.ForeColor = $C_TextMain; $cb.BackColor = $C_Card
-            $cb.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9)
+            $cb.Font = New-Object System.Drawing.Font("Segoe UI", 9)
             $cb.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 5)
             $innerPanel.Controls.Add($cb)
             $script:CurrentCheckboxes[$app.Name] = $cb
@@ -401,10 +515,12 @@ function Set-AppModule {
 }
 
 function Set-TweaksModule {
-    Clear-DynamicPanel
+    Set-ModuleActive $btnModTweaks
     $script:CurrentModule = "Tweaks"
+    $DynPanel.Visible = $true; $PanelDrivers.Visible = $false
+    $PanelSearch.Visible = $false; $btnExecute.Visible = $true
     $LblHeader.Text = "Optimizaciones y Tweaks"
-    $PanelSearch.Visible = $false
+    Clear-DynamicPanel
     
     $Categories = $TweakCatalog | ForEach-Object { $_.Cat } | Select-Object -Unique
     foreach ($cat in $Categories) {
@@ -416,7 +532,7 @@ function Set-TweaksModule {
 
         $LblCat = New-Object System.Windows.Forms.Label
         $LblCat.Text = $cat.ToUpper()
-        $LblCat.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9, [System.Drawing.FontStyle]::Bold)
+        $LblCat.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
         $LblCat.ForeColor = $C_TextSec; $LblCat.Location = New-Object System.Drawing.Point(20, 15); $LblCat.AutoSize = $true
         $Card.Controls.Add($LblCat)
 
@@ -429,7 +545,7 @@ function Set-TweaksModule {
             $cb.Text = $tweak.Name; $cb.Tag = $tweak.Script
             $cb.Size = New-Object System.Drawing.Size(300, 30)
             $cb.ForeColor = $C_TextMain; $cb.BackColor = $C_Card
-            $cb.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9)
+            $cb.Font = New-Object System.Drawing.Font("Segoe UI", 9)
             $cb.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 5)
             $innerPanel.Controls.Add($cb)
             $script:CurrentCheckboxes[$tweak.Name] = $cb
@@ -440,20 +556,19 @@ function Set-TweaksModule {
     }
 }
 
- $btnModApps.Add_Click({ 
-    Set-AppModule
-    $btnModApps.BackColor = $C_Card; $btnModApps.ForeColor = $C_TextMain
-    $btnModTweaks.BackColor = $C_BgLayer; $btnModTweaks.ForeColor = $C_TextSec
-})
- $btnModApps.Add_MouseEnter({ if($CurrentModule -ne "Apps"){ $btnModApps.BackColor = [System.Drawing.Color]::FromArgb(35, 35, 42) } })
+function Set-DriversModule {
+    Set-ModuleActive $btnModDrivers
+    $script:CurrentModule = "Drivers"
+    $DynPanel.Visible = $false; $PanelDrivers.Visible = $true
+    $PanelSearch.Visible = $false; $btnExecute.Visible = $false
+    $LblHeader.Text = "Gestor de Drivers"
+    $LblDriversInfo.Text = "Haz clic en Analizar para buscar controladores desactualizados."
+}
 
- $btnModTweaks.Add_Click({ 
-    Set-TweaksModule
-    $btnModTweaks.BackColor = $C_Card; $btnModTweaks.ForeColor = $C_TextMain
-    $btnModApps.BackColor = $C_BgLayer; $btnModApps.ForeColor = $C_TextSec
-})
- $btnModTweaks.Add_MouseEnter({ if($CurrentModule -ne "Tweaks"){ $btnModTweaks.BackColor = [System.Drawing.Color]::FromArgb(35, 35, 42) } })
-
+# --- EVENTOS DE UI ---
+ $btnModApps.Add_Click({ Set-AppModule })
+ $btnModTweaks.Add_Click({ Set-TweaksModule })
+ $btnModDrivers.Add_Click({ Set-DriversModule })
  $btnRec.Add_Click({ foreach($app in $AppCatalog) { $CurrentCheckboxes[$app.Name].Checked = $app.Rec } })
 
  $txtSearch.Add_GotFocus({ if ($txtSearch.Text -eq "Buscar...") { $txtSearch.Text = ""; $txtSearch.ForeColor = $C_TextMain } })
@@ -474,6 +589,22 @@ function Set-TweaksModule {
     }
 })
 
+# Lógica Escaneo Drivers (Mock)
+ $btnScanDrivers.Add_Click({
+    $btnScanDrivers.Text = "ANALIZANDO..."
+    $btnScanDrivers.Enabled = $false
+    $LblDriversInfo.Text = "Buscando controladores de video, audio y red..."
+    $LblDriversInfo.ForeColor = $C_Accent
+    
+    Start-Sleep -Seconds 2 # Simulación de escaneo
+    
+    $LblDriversInfo.Text = "Tu PC está actualizada. No se requieren acciones."
+    $LblDriversInfo.ForeColor = $C_TextSec
+    $btnScanDrivers.Text = "ANALIZAR DRIVERS"
+    $btnScanDrivers.Enabled = $true
+})
+
+# Lógica Ejecutar
  $btnExecute.Add_Click({
     $visibleChecks = $CurrentCheckboxes.Values | Where-Object { $_.Checked -and $_.Visible }
     if (-not $visibleChecks.Count) { Write-Log "No hay opciones marcadas." "Yellow"; return }
@@ -516,7 +647,5 @@ function Set-TweaksModule {
 # Inicializar
  $UITimer.Start()
 Set-AppModule
- $btnModApps.BackColor = $C_Card
- $btnModApps.ForeColor = $C_TextMain
 Write-Log "icezOP Premium UI iniciado." "LightGray"
  $Form.ShowDialog() | Out-Null
