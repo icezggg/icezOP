@@ -747,6 +747,7 @@ function Scan-Drivers {
 function Update-Drivers {
     # Ejecuta el plan seleccionado, re-escanea al final y compara before/after.
     param($Sync, $Plan)
+    $txt = $Sync.Texts
     $R = $Sync.DrvRun
     function L([string]$m) { $R.Log.Enqueue($m) }
     Write-DriverLog '==================== INICIO DE ACTUALIZACION ===================='
@@ -900,7 +901,7 @@ function Initialize-DriverPage {
     $btnLog = New-Object IcezOP.GhostButton
     $btnLog.Location = Pt 616 26
     $btnLog.Size = Sz 64 32
-    $btnLog.Text = 'LOG'
+    $btnLog.Text = (t 'LOG')
     $btnLog.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
     $btnLog.Add_Click({
         try {
@@ -913,7 +914,7 @@ function Initialize-DriverPage {
     $btnScan = New-Object IcezOP.GradientButton
     $btnScan.Location = Pt 692 22
     $btnScan.Size = Sz 176 40
-    $btnScan.Text = 'ESCANEAR'
+    $btnScan.Text = (t 'ESCANEAR')
     $btnScan.Glyph = (icezG 'Drv')
     $btnScan.GlyphFont = $Script:GlyphFont
     $btnScan.Add_Click({
@@ -951,7 +952,7 @@ function Initialize-DriverPage {
 
     $Script:DrvUpdBtn = New-Object IcezOP.GradientButton
     $Script:DrvUpdBtn.Size = Sz 300 42
-    $Script:DrvUpdBtn.Text = 'ACTUALIZAR SELECCIONADOS'
+    $Script:DrvUpdBtn.Text = (t 'ACTUALIZAR SELECCIONADOS ({0})' -f 0)
     $Script:DrvUpdBtn.Visible = $false
     $Script:DrvUpdBtn.Add_Click({ Invoke-DriverUpdateFromUI })
 }
@@ -965,7 +966,7 @@ function Update-DriverUpdateBtn {
          @($sel.SelComp.Keys | Where-Object { $sel.SelComp[$_] }).Count
     if ($n -gt 0) {
         $Script:DrvUpdBtn.Visible = $true
-        $Script:DrvUpdBtn.Text = ('ACTUALIZAR SELECCIONADOS ({0})' -f $n)
+                $Script:DrvUpdBtn.Text = ((t 'ACTUALIZAR SELECCIONADOS ({0})') -f $n)
     } else {
         $Script:DrvUpdBtn.Visible = $false
     }
@@ -999,17 +1000,17 @@ function Render-DriverResults {
         $statusText = ''
         $statusCol = 'Sub'
         switch ([string]$g.State) {
-            'checking' { $statusText = 'Consultando fabricante...' }
-            'ok'       { $statusText = ('Al dia segun NVIDIA (ultima publicada: v' + $g.Latest + ')'); $statusCol = 'Ok' }
-            'update'   { $statusText = ('UPDATE DISPONIBLE: v' + $g.Latest + '  ·  Fuente: NVIDIA (descarga oficial, firma verificada)'); $statusCol = 'Acc'; $c.BorderColor = (icezCol 'Acc') }
+            'checking' { $statusText = (t 'Consultando fabricante...') }
+            'ok'       { $statusText = ((t 'Al dia segun NVIDIA (ultima publicada: v{0})') -f $g.Latest); $statusCol = 'Ok' }
+            'update'   { $statusText = ((t 'UPDATE DISPONIBLE: v{0}  ·  Fuente: NVIDIA (descarga oficial, firma verificada)') -f $g.Latest); $statusCol = 'Acc'; $c.BorderColor = (icezCol 'Acc') }
             default    { $statusText = ('UNKNOWN - no se pudo determinar automaticamente. ' + $g.Note); $statusCol = 'Warn' }
         }
         $c.Controls.Add((New-Label $statusText 20 58 630 18 8.5 $statusCol))
         $key = ''
         $cbText = ''
-        if ($g.Vendor -eq 'NVIDIA' -and $g.State -eq 'update') { $key = 'NVIDIA|' + $g.Name; $cbText = 'Actualizar via NVIDIA' }
-        elseif ($g.Vendor -eq 'AMD')   { $key = 'AMD|' + $g.Name;   $cbText = 'Herramienta oficial AMD' }
-        elseif ($g.Vendor -eq 'Intel') { $key = 'INTEL|' + $g.Name; $cbText = 'Intel DSA (oficial)' }
+        if ($g.Vendor -eq 'NVIDIA' -and $g.State -eq 'update') { $key = 'NVIDIA|' + $g.Name; $cbText = (t 'Actualizar via NVIDIA') }
+        elseif ($g.Vendor -eq 'AMD')   { $key = 'AMD|' + $g.Name;   $cbText = (t 'Herramienta oficial AMD') }
+        elseif ($g.Vendor -eq 'Intel') { $key = 'INTEL|' + $g.Name; $cbText = (t 'Intel DSA (oficial)') }
         if ($key -and $Script:DrvSelHandler) {
             $cb = New-Object IcezOP.IcezCheckBox
             $cb.Location = Pt 650 30
@@ -1028,7 +1029,7 @@ function Render-DriverResults {
     }
 
     # ── Windows Update ──
-    $dyn.Controls.Add((New-Label ('Windows Update · {0} actualizacion(es) de drivers' -f $wu.Count) 24 $y 600 24 11 'Text' -Bold))
+    $dyn.Controls.Add((New-Label ((t 'Windows Update · {0} actualizacion(es) de drivers') -f $wu.Count) 24 $y 600 24 11 'Text' -Bold))
     $y += 26
     if ($wuFailed) {
         $dyn.Controls.Add((New-Label ([string]$sync.DrvWuNote) 24 $y 860 18 8.5 'Warn'))
@@ -1076,7 +1077,7 @@ function Render-DriverResults {
             $cb = New-Object IcezOP.IcezCheckBox
             $cb.Location = Pt 786 $y
             $cb.Size = Sz 130 22
-            $cb.Text = 'Instalar'
+            $cb.Text = (t 'Instalar')
             $cb.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
             $cb.Tag = ('comp|' + [string]$cp.Action)
             $map = $Script:DrvUI.SelComp
@@ -1091,7 +1092,7 @@ function Render-DriverResults {
     }
 
     # ── Dispositivos (completo; al dia = tenue abajo) ──
-    $dyn.Controls.Add((New-Label ('Dispositivos detectados ({0})' -f $hw.Count) 24 $y 500 24 11 'Text' -Bold))
+    $dyn.Controls.Add((New-Label ((t 'Dispositivos detectados ({0})') -f $hw.Count) 24 $y 500 24 11 'Text' -Bold))
     $y += 24
     $dyn.Controls.Add((New-Label 'Leyenda: [OK] al dia segun Windows Update · [UPDATE] hay version mas nueva · [NO DRIVER] sin driver · [ERROR] dispositivo con problema · [UNKNOWN] no se pudo determinar' 24 $y 880 18 8 'Dim'))
     $y += 22
@@ -1135,11 +1136,11 @@ function Update-DriverUITick {
     $ph = [string]$sync.DriverPhase
     if ($ph -eq 'idle' -or $ph -eq $Script:DrvUI.LastPhase) { return }
     switch ($ph) {
-        'scanning' { $Script:DrvStatusLbl.Text = 'Detectando hardware...' }
-        'hw'       { $Script:DrvStatusLbl.Text = 'Consultando Windows Update (puede tardar)...'; Render-DriverResults }
-        'wu'       { $Script:DrvStatusLbl.Text = 'Consultando fabricantes de GPU...'; Render-DriverResults }
-        'gpu'      { $Script:DrvStatusLbl.Text = 'Generando resumen...'; Render-DriverResults }
-        'done'     { $Script:DrvStatusLbl.Text = 'Escaneo completado. Revisa las secciones de abajo.'; Render-DriverResults }
+        'scanning' { $Script:DrvStatusLbl.Text = (t 'Detectando hardware...') }
+        'hw'       { $Script:DrvStatusLbl.Text = (t 'Consultando Windows Update (puede tardar)...'); Render-DriverResults }
+        'wu'       { $Script:DrvStatusLbl.Text = (t 'Consultando fabricantes de GPU...'); Render-DriverResults }
+        'gpu'      { $Script:DrvStatusLbl.Text = (t 'Generando resumen...'); Render-DriverResults }
+        'done'     { $Script:DrvStatusLbl.Text = (t 'Escaneo completado. Revisa las secciones de abajo.'); Render-DriverResults }
         'error'    { $Script:DrvStatusLbl.Text = ('Error: ' + [string]$sync.DriverError) }
     }
     $Script:DrvUI.LastPhase = $ph
@@ -1209,13 +1210,13 @@ function Start-DriverRunModal {
     $cancelBtn = New-Object IcezOP.GhostButton
     $cancelBtn.Location = Pt 28 436
     $cancelBtn.Size = Sz 160 42
-    $cancelBtn.Text = 'CANCELAR'
+    $cancelBtn.Text = (t 'CANCELAR')
     $cancelBtn.ForeColor = (icezCol 'Err')
     $cancelBtn.Add_Click({
         $sync.DrvRun.Cancel = $true
         if ($Script:DrvRunUI) {
             $Script:DrvRunUI.Cancel.Enabled = $false
-            $Script:DrvRunUI.Cancel.Text = 'CANCELANDO...'
+            $Script:DrvRunUI.Cancel.Text = (t 'CANCELANDO...')
         }
     })
     $modal.Controls.Add($cancelBtn)
@@ -1227,7 +1228,7 @@ function Start-DriverRunModal {
     $rebootBtn = New-Object IcezOP.GradientButton
     $rebootBtn.Location = Pt 370 436
     $rebootBtn.Size = Sz 200 42
-    $rebootBtn.Text = 'REINICIAR AHORA'
+    $rebootBtn.Text = (t 'REINICIAR AHORA')
     $rebootBtn.Visible = $false
     $rebootBtn.Add_Click({
         Start-Process 'shutdown.exe' -ArgumentList @('/r', '/t', '5', '/c', 'icezOP - drivers')
@@ -1238,7 +1239,7 @@ function Start-DriverRunModal {
     $finishBtn = New-Object IcezOP.GhostButton
     $finishBtn.Location = Pt 582 436
     $finishBtn.Size = Sz 90 42
-    $finishBtn.Text = 'FINALIZAR'
+    $finishBtn.Text = (t 'FINALIZAR')
     $finishBtn.Visible = $false
     $finishBtn.Add_Click({ if ($Script:DrvRunModalF) { $Script:DrvRunModalF.Close() } })
     $modal.Controls.Add($finishBtn)
@@ -1301,5 +1302,5 @@ function Start-DriverRunModal {
     [void]$modal.ShowDialog($ov)
     $ov.Close()
     $ov.Dispose()
-    if ($Script:DrvStatusLbl) { $Script:DrvStatusLbl.Text = 'Actualizacion finalizada. Vuelve a ESCANEAR para refrescar el estado.' }
+    if ($Script:DrvStatusLbl) { $Script:DrvStatusLbl.Text = (t 'Actualizacion finalizada. Vuelve a ESCANEAR para refrescar el estado.') }
 }
