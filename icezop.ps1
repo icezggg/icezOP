@@ -13,7 +13,7 @@
 #>
 
 # ════════════════════ 0. ARRANQUE, PERMISOS Y MODO ════════════════════
- $Script:Version  = '0.2.0'
+ $Script:Version  = '0.3.0'
  $Script:RepoBase = 'https://raw.githubusercontent.com/icezggg/icezOP/main'
  $Script:SelfPath = $PSCommandPath
 
@@ -131,7 +131,7 @@ function Save-Config {
 
  $Script:Apps    = @(Import-IcezJson 'apps.json'    | Where-Object { $_.Name -and $_.ID -and $_.Cat })
  $Script:Tweaks  = @(Import-IcezJson 'tweaks.json'  | Where-Object { $_.Name -and $_.Script -and $_.Cat })
- $Script:Drivers = @(Import-IcezJson 'drivers.json' | Where-Object { $_.Match -and $_.Latest })
+# (v0.3.0) drivers.json eliminado: el motor de drivers analiza la PC dinamicamente.
 
  $Script:Settings = Load-Config
 
@@ -1352,196 +1352,32 @@ foreach ($cat in $Script:TweakCats) {
     $tweakFlow.Controls.Add($tile)
 }
 
-# ═══════════ PAGINA: CONTROLADORES (motor propio) ═══════════
+# ═══════════ PAGINA: CONTROLADORES (motor dinamico v0.3.0) ═══════════
  $pDrv = New-Page 'drivers'
- $pDrv.Controls.Add((New-Label 'Controladores' 24 16 400 34 15 'Text' -Bold))
- $pDrv.Controls.Add((New-Label 'Escaneo local contra drivers.json - sin Windows Update. Los desactualizados aparecen arriba.' 24 48 760 22 9.5 'Sub'))
 
- $drvCard = New-Card 24 80 892 84
- $drvCard.Controls.Add((New-Label 'Escaneo de controladores' 20 12 400 24 10.5 'Text' -Bold))
- $Script:DriverStatusLbl = New-Label 'Nunca se ha escaneado. Pulsa ESCANEAR para analizar tu equipo.' 20 42 620 20 9 'Sub'
- $drvCard.Controls.Add($Script:DriverStatusLbl)
-
- $Script:DrvScanBtn = New-Object IcezOP.GradientButton
- $Script:DrvScanBtn.Location = Pt 692 22
- $Script:DrvScanBtn.Size = Sz 176 40
- $Script:DrvScanBtn.Text = 'ESCANEAR'
- $Script:DrvScanBtn.Glyph = (icezG 'Drv')
- $Script:DrvScanBtn.GlyphFont = $Script:GlyphFont
- $drvCard.Controls.Add($Script:DrvScanBtn)
- $pDrv.Controls.Add($drvCard)
-
- $Script:DrvPendTitle = New-Label 'Pendientes de actualizacion (0)' 24 178 500 24 11 'Text' -Bold
- $pDrv.Controls.Add($Script:DrvPendTitle)
-
- $Script:DriverUpdatesPanel = New-Object System.Windows.Forms.Panel
- $Script:DriverUpdatesPanel.Location = Pt 24 204
- $Script:DriverUpdatesPanel.Size = Sz 892 150
- $Script:DriverUpdatesPanel.BackColor = (icezCol 'Bg')
- $Script:DriverUpdatesPanel.AutoScroll = $true
- $pDrv.Controls.Add($Script:DriverUpdatesPanel)
-
- $Script:DrvInstTitle = New-Label 'Instalados (0)' 24 366 500 24 11 'Text' -Bold
- $pDrv.Controls.Add($Script:DrvInstTitle)
-
- $Script:DriverInstalledPanel = New-Object System.Windows.Forms.Panel
- $Script:DriverInstalledPanel.Location = Pt 24 392
- $Script:DriverInstalledPanel.Size = Sz 892 146
- $Script:DriverInstalledPanel.BackColor = (icezCol 'Bg')
- $Script:DriverInstalledPanel.AutoScroll = $true
- $pDrv.Controls.Add($Script:DriverInstalledPanel)
-
- $Script:DrvUpdBtn = New-Object IcezOP.GradientButton
- $Script:DrvUpdBtn.Location = Pt 24 548
- $Script:DrvUpdBtn.Size = Sz 300 42
- $Script:DrvUpdBtn.Text = 'ACTUALIZAR SELECCIONADOS'
- $Script:DrvUpdBtn.Visible = $false
- $pDrv.Controls.Add($Script:DrvUpdBtn)
-
- $Script:DrvScanBtn.Add_Click({
-    if ($Script:DrvPs -and $Script:DrvPs.InvocationStateInfo.State -eq 'Running') { return }
-    $sync.DriverPhase = 'scanning'
-    $Script:DriverRendered = $false
-    $Script:DriverStatusLbl.Text = 'Escaneando controladores instalados...'
-    try { if ($Script:DrvPs) { $Script:DrvPs.Dispose(); $Script:DrvRs.Dispose() } } catch {}
-    $Script:DrvRs = [runspacefactory]::CreateRunspace()
-    $Script:DrvRs.ApartmentState = 'STA'
-    $Script:DrvRs.ThreadOptions = 'ReuseThread'
-    $Script:DrvRs.Open()
-    $Script:DrvPs = [powershell]::Create()
-    $Script:DrvPs.Runspace = $Script:DrvRs
-    [void]$Script:DrvPs.AddScript($Script:DriverScanCode)
-    [void]$Script:DrvPs.AddArgument($sync)
-    [void]$Script:DrvPs.AddArgument($Script:Drivers)
-    $null = $Script:DrvPs.BeginInvoke()
-})
-
-function Build-DriverCards {
-    $scan = @($sync.DriverScan)
-    $Script:DriverUpdatesPanel.Controls.Clear()
-    $Script:DriverInstalledPanel.Controls.Clear()
-    $Script:DriverSel = @{}
-
-    $updates = @($scan | Where-Object { $_.State -eq 'update' })
-    $rest    = @($scan | Where-Object { $_.State -ne 'update' })
-    $currents = @($rest | Where-Object { $_.State -eq 'current' })
-
-    $Script:DrvPendTitle.Text = ('Pendientes de actualizacion ({0})' -f $updates.Count)
-    $Script:DrvInstTitle.Text = ('Instalados ({0})' -f $rest.Count)
-
-    # ── Grupo 1: DESACTUALIZADOS (arriba, destacados, con accion) ──
-    if ($updates.Count -gt 0) {
-        $y = 0
-        foreach ($u in $updates) {
-            $c = New-Object IcezOP.CardPanel
-            $c.Location = Pt 0 $y
-            $c.Size = Sz 874 64
-            $c.BorderColor = (icezCol 'Acc')
-
-            $cb = New-Object IcezOP.IcezCheckBox
-            $cb.Location = Pt 16 4
-            $cb.Size = Sz 620 30
-            $cb.Text = [string]$u.Name
-
-            $sub = ''
-            if ($u.Current) { $sub += ('v' + $u.Current) }
-            if ($u.Latest)  { $sub += ('   ->   v' + $u.Latest) }
-            if ($u.Date)    { $sub += ('   -   ' + $u.Date) }
-            $c.Controls.Add((New-Label $sub 44 34 640 20 8.25 'AccL'))
-
-            $btn = New-Object IcezOP.GhostButton
-            $btn.Location = Pt 716 17
-            $btn.Size = Sz 142 30
-            $btn.Text = 'ANADIR A LA COLA'
-            $btn.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
-
-            $k = [string]$u.Name
-            $btn.Add_Click({ $cb.Checked = -not $cb.Checked }.GetNewClosure())
-            $cb.Add_CheckedChanged({
-                param($s, $e)
-                $Script:DriverSel[$k] = $s.Checked
-                if ($s.Checked) {
-                    $btn.Text = 'EN COLA'
-                    $btn.ForeColor = (icezCol 'Ok')
-                } else {
-                    $btn.Text = 'ANADIR A LA COLA'
-                    $btn.ForeColor = (icezCol 'AccL')
-                }
-                Update-DriverBtn
-            }.GetNewClosure())
-
-            $c.Controls.Add($cb)
-            $c.Controls.Add($btn)
-            $Script:DriverUpdatesPanel.Controls.Add($c)
-            $y += 72
-        }
-    } else {
-        if ($Script:Drivers.Count -eq 0) {
-            $Script:DriverUpdatesPanel.Controls.Add((New-Label 'drivers.json no encontrado o sin entradas: no se puede analizar que esta desactualizado.' 4 8 760 36 9 'Warn'))
-        } else {
-            $Script:DriverUpdatesPanel.Controls.Add((New-Label 'Sin controladores pendientes segun drivers.json.' 4 8 700 20 9 'Ok'))
-        }
-    }
-
-    # ── Grupo 2: AL DIA / SIN DATOS (abajo, tenues, sin boton) ──
-    if ($rest.Count -eq 0) {
-        $Script:DriverInstalledPanel.Controls.Add((New-Label 'No se detectaron dispositivos.' 4 6 600 20 9 'Sub'))
-    } else {
-        $lim = 80
-        $y = 0
-        $i = 0
-        foreach ($r in $rest) {
-            if ($i -ge $lim) {
-                $Script:DriverInstalledPanel.Controls.Add((New-Label ('... y ' + ($rest.Count - $lim) + ' dispositivos mas') 4 $y 600 20 9 'Sub'))
-                break
-            }
-            $c = New-Object IcezOP.CardPanel
-            $c.Location = Pt 0 $y
-            $c.Size = Sz 874 44
-            $c.FillColor = (icezCol 'BgAlt')
-            $c.BorderColor = (icezCol 'BgAlt')
-
-            $nameCol = 'Sub'
-            $verText = ('v' + $r.Current)
-            if ($r.State -eq 'unknown') {
-                $nameCol = 'Dim2'
-                if (-not $r.Current) { $verText = 'sin version' }
-            }
-            $c.Controls.Add((New-Label ([string]$r.Name) 16 11 640 20 9 $nameCol))
-            $c.Controls.Add((New-Label $verText 660 13 195 18 8.25 'Dim2'))
-            $Script:DriverInstalledPanel.Controls.Add($c)
-            $y += 50
-            $i++
-        }
-    }
-
-    $Script:DriverStatusLbl.Text = ('{0} pendientes - {1} al dia - {2} dispositivos en total' -f $updates.Count, $currents.Count, $rest.Count)
-    Update-DriverBtn
+# Cargar el motor de drivers (drivers-engine.ps1):
+# 1) junto al script  2) cache en ProgramData  3) descargar del repositorio
+ $Script:EnginePath = $null
+foreach ($cand in @((Join-Path $Script:Root 'drivers-engine.ps1'), (Join-Path $env:ProgramData 'icezOP\drivers-engine.ps1'))) {
+    if (Test-Path -LiteralPath $cand) { $Script:EnginePath = $cand; break }
 }
-
-# Ejecutar drivers seleccionados
- $Script:DrvUpdBtn.Add_Click({
-    $names = @($Script:DriverSel.Keys | Where-Object { $Script:DriverSel[$_] })
-    if ($names.Count -eq 0) { return }
-    $scan = @($sync.DriverScan)
-    $sync.Winget = Get-WingetPath
-    $tasks = New-Object System.Collections.ArrayList
-    foreach ($nm in $names) {
-        $it = @($scan | Where-Object { $_.Name -eq $nm }) | Select-Object -First 1
-        if ($it) {
-            [void]$tasks.Add(@{
-                Kind   = 'driver'
-                Label  = ('Driver: ' + $it.Name)
-                Action = [string]$it.Action
-                Id     = [string]$it.Id
-                Url    = [string]$it.Url
-            })
-        }
-    }
-    if ($tasks.Count -gt 0) {
-        Start-Run -Tasks $tasks -Title 'Actualizando controladores'
-    }
-})
+if (-not $Script:EnginePath) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $dstDir = Join-Path $env:ProgramData 'icezOP'
+        if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
+        $dstFile = Join-Path $dstDir 'drivers-engine.ps1'
+        Invoke-WebRequest -Uri ($Script:RepoBase + '/drivers-engine.ps1') -OutFile $dstFile -UseBasicParsing
+        $Script:EnginePath = $dstFile
+    } catch {}
+}
+if ($Script:EnginePath) {
+    . $Script:EnginePath
+    Initialize-DriverPage -Page $pDrv
+} else {
+    $pDrv.Controls.Add((New-Label 'Controladores' 24 16 400 34 15 'Text' -Bold))
+    $pDrv.Controls.Add((New-Label 'No se pudo cargar drivers-engine.ps1. Subilo al repositorio o colocalo junto a icezop.ps1.' 24 48 800 40 9.5 'Err'))
+}
 
 # ═══════════ PAGINA: AJUSTES ═══════════
  $pSet = New-Page 'settings'
@@ -1976,11 +1812,7 @@ function Start-Run {
             $Script:RunFinish.Visible = $true
         }
     }
-    switch ([string]$sync.DriverPhase) {
-        'scanning' { if ($Script:DriverStatusLbl) { $Script:DriverStatusLbl.Text = 'Escaneando controladores instalados...' } }
-        'done'     { if (-not $Script:DriverRendered) { $Script:DriverRendered = $true; Build-DriverCards; $sync.DriverPhase = 'idle' } }
-        'error'    { if (-not $Script:DriverRendered) { $Script:DriverRendered = $true; $Script:DriverStatusLbl.Text = ('Error: ' + $sync.DriverError); $sync.DriverPhase = 'idle' } }
-    }
+    if (Get-Command Update-DriverUITick -ErrorAction SilentlyContinue) { Update-DriverUITick }
 })
  $uiTimer.Start()
 
