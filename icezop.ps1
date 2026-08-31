@@ -55,16 +55,26 @@ public class GradientButton : Button {
 }
 
 public class SecondaryButton : Button {
-    public SecondaryButton() { this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 1; this.FlatAppearance.BorderColor = Color.FromArgb(60, 60, 70); this.BackColor = Color.FromArgb(30, 30, 36); this.ForeColor = Color.White; this.Font = new Font("Segoe UI Variable Text", 9, FontStyle.Bold); this.Cursor = Cursors.Hand; this.Height = 40; }
+    public SecondaryButton() {
+        this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 1; this.FlatAppearance.BorderColor = Color.FromArgb(60, 60, 70);
+        this.BackColor = Color.FromArgb(30, 30, 36); this.ForeColor = Color.White; this.Font = new Font("Segoe UI", 9, FontStyle.Bold); this.Cursor = Cursors.Hand; this.Height = 35;
+    }
 }
 
 public class AccentButton : Button {
-    public AccentButton() { this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 1; this.FlatAppearance.BorderColor = Color.FromArgb(139, 92, 246); this.BackColor = Color.FromArgb(20, 20, 25); this.ForeColor = Color.FromArgb(165, 120, 255); this.Font = new Font("Segoe UI Variable Text", 8, FontStyle.Bold); this.Cursor = Cursors.Hand; this.Height = 25; }
+    public AccentButton() {
+        this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 1; this.FlatAppearance.BorderColor = Color.FromArgb(139, 92, 246);
+        this.BackColor = Color.FromArgb(20, 20, 25); this.ForeColor = Color.FromArgb(165, 120, 255); this.Font = new Font("Segoe UI", 8, FontStyle.Bold); this.Cursor = Cursors.Hand; this.Height = 25;
+    }
 }
 
 public class ModernCheckBox : CheckBox {
     public Color CheckColor { get; set; }
-    public ModernCheckBox() { this.CheckColor = Color.FromArgb(139, 92, 246); this.FlatStyle = FlatStyle.Flat; this.FlatAppearance.BorderSize = 0; }
+    public ModernCheckBox() { 
+        this.CheckColor = Color.FromArgb(139, 92, 246);
+        this.FlatStyle = FlatStyle.Flat; 
+        this.FlatAppearance.BorderSize = 0; 
+    }
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias; g.Clear(this.BackColor);
         Rectangle boxRect = new Rectangle(0, (this.Height - 16) / 2, 16, 16);
@@ -90,8 +100,10 @@ public class CategoryCard : Panel {
     public bool IsExpanded { get; set; }
     public CategoryCard() {
         this.BackColor = Color.FromArgb(30, 30, 36); this.Size = new Size(350, 45); this.Margin = new Padding(0, 0, 15, 15);
+        
         Header = new Label(); Header.Size = new Size(350, 45); Header.TextAlign = ContentAlignment.MiddleLeft; Header.Padding = new Padding(20, 0, 0, 0);
-        Header.Font = new Font("Segoe UI Variable Text", 10, FontStyle.Bold); Header.ForeColor = Color.White; Header.Cursor = Cursors.Hand; Header.BackColor = Color.FromArgb(40, 40, 48); Controls.Add(Header);
+        Header.Font = new Font("Segoe UI", 10, FontStyle.Bold); Header.ForeColor = Color.White; Header.Cursor = Cursors.Hand; Header.BackColor = Color.FromArgb(40, 40, 48); Controls.Add(Header);
+
         Inner = new FlowLayoutPanel(); Inner.AutoSize = true; Inner.AutoSizeMode = AutoSizeMode.GrowAndShrink; Inner.Location = new Point(0, 45);
         Inner.Size = new Size(350, 0); Inner.FlowDirection = FlowDirection.TopDown; Inner.WrapContents = false; Inner.Visible = false; Inner.Padding = new Padding(20, 15,20, 15); Controls.Add(Inner);
         Header.Click += (s, e) => { IsExpanded = !IsExpanded; Inner.Visible = IsExpanded; if (IsExpanded) { this.Height = 45 + Inner.PreferredSize.Height; } else { this.Height = 45; } };
@@ -108,15 +120,18 @@ public class DriverCard : Panel {
         if (isPending) {
             Check = new ModernCheckBox(); Check.Location = new Point(x, 17); Check.Size = new Size(20, 20); Check.BackColor = this.BackColor; Controls.Add(Check); x += 35;
         } else { x += 35; }
-        LblName = new Label(); LblName.Location = new Point(x, 15); LblName.Font = new Font("Segoe UI Variable Text", 9, FontStyle.Bold); LblName.ForeColor = Color.White; LblName.AutoSize = true; Controls.Add(LblName);
-        LblStatus = new Label(); LblStatus.Location = new Point(630, 17); LblStatus.Font = new Font("Segoe UI Variable Text", 8, FontStyle.Bold); LblStatus.AutoSize = true; Controls.Add(LblStatus);
+        LblName = new Label(); LblName.Location = new Point(x, 15); LblName.Font = new Font("Segoe UI", 9, FontStyle.Bold); LblName.ForeColor = Color.White; LblName.AutoSize = true; Controls.Add(LblName);
+        LblStatus = new Label(); LblStatus.Location = new Point(630, 17); LblStatus.Font = new Font("Segoe UI", 8, FontStyle.Bold); LblStatus.AutoSize = true; Controls.Add(LblStatus);
     }
 }
 
 public class CircularProgress : Control {
-    public Color ProgressColor { get; set; } = Color.FromArgb(139, 92, 246);
+    public Color ProgressColor { get; set; }
     private Timer timer; private float angle = 0;
-    public CircularProgress() { this.DoubleBuffered = true; this.Size = new Size(60, 60); timer = new Timer(); timer.Interval = 20; timer.Tick += (s, e) => { angle = (angle + 5) % 360; this.Invalidate(); }; timer.Start(); }
+    public CircularProgress() { 
+        this.ProgressColor = Color.FromArgb(139, 92, 246);
+        this.DoubleBuffered = true; this.Size = new Size(60, 60); timer = new Timer(); timer.Interval = 20; timer.Tick += (s, e) => { angle = (angle + 5) % 360; this.Invalidate(); }; timer.Start(); 
+    }
     protected override void OnPaint(PaintEventArgs e) {
         Graphics g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias; g.Clear(this.BackColor);
         using (Pen p = new Pen(ProgressColor, 4)) { p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; Rectangle rect = new Rectangle(2, 2, this.Width - 6, this.Height - 6); g.DrawArc(p, rect, angle, 120); }
@@ -133,8 +148,8 @@ public class WinButton : Button {
             using (Pen p = new Pen(Color.White, 2)) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26, 10, 16, 20); }
         } else {
             using (Pen p = new Pen(this.ForeColor, 2)) {
-                if (IsClose) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26, 10, 16, 20); }
-                else if (IconType == 3) { g.DrawLine(p, 15, 12, 27, 12); g.DrawLine(p, 15, 16, 27, 16); g.DrawLine(p, 15, 20, 27, 20); } // Hamburguer
+                if (IsClose) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26,10, 16, 20); }
+                else if (IconType == 3) { g.DrawLine(p, 15, 12, 27, 12); g.DrawLine(p, 15, 16, 27,16); g.DrawLine(p, 15, 20, 27, 20); } // Hamburguer
                 else { g.DrawLine(p, 15, 15, 27, 15); } // Minimize
             }
         }
@@ -182,8 +197,7 @@ public class DarkScrollPanel : FlowLayoutPanel {
         }
     }
     if ($script:sync.IsScanning -eq $false -and $script:PanelLoading.Visible -eq $true) {
-        $script:PanelLoading.Visible = $false; $script:DriverListPanel.Visible = $true; $script:PanelDriverFooter.Visible = $true
-        $script:btnScanDrivers.Visible = $false
+        $script:PanelLoading.Visible = $false; $script:DriverListPanel.Visible = $true; $script:PanelDriverFooter.Visible = $true; $script:btnScanDrivers.Visible = $false
     }
 })
 
@@ -192,7 +206,7 @@ function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = 
 # --- TEMA ICEZOP ---
  $C_BgBase = [System.Drawing.Color]::FromArgb(15, 15, 18); $C_BgLayer = [System.Drawing.Color]::FromArgb(25, 25, 30); $C_Card = [System.Drawing.Color]::FromArgb(30, 30, 36)
  $C_Accent = [System.Drawing.Color]::FromArgb(139, 92, 246); $C_TextMain = [System.Drawing.Color]::FromArgb(245, 245, 250); $C_TextSec = [System.Drawing.Color]::FromArgb(140, 140, 150)
- $FontGlobal = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
+ $FontGlobal = New-Object System.Drawing.Font("Segoe UI", 10)
 
 # --- FORMULARIO BORDERLESS ---
  $Form = New-Object System.Windows.Forms.Form; $Form.Text = "icezOP"; $Form.Size = New-Object System.Drawing.Size(1100, 750); $Form.StartPosition = "CenterScreen"; $Form.BackColor = $C_BgBase; $Form.FormBorderStyle = "None"
@@ -214,7 +228,7 @@ function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = 
  $btnHamburger.Add_MouseEnter({ $btnHamburger.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 52) })
  $btnHamburger.Add_MouseLeave({ $btnHamburger.BackColor = $C_BgLayer })
 
- $LblLogo = New-Object System.Windows.Forms.Label; $LblLogo.Text = "icezOP"; $LblLogo.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 16, [System.Drawing.FontStyle]::Bold); $LblLogo.ForeColor = $C_Accent; $LblLogo.Location = New-Object System.Drawing.Point(50, 10); $LblLogo.AutoSize = $true; $TitleBar.Controls.Add($LblLogo)
+ $LblLogo = New-Object System.Windows.Forms.Label; $LblLogo.Text = "icezOP"; $LblLogo.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold); $LblLogo.ForeColor = $C_Accent; $LblLogo.Location = New-Object System.Drawing.Point(50, 10); $LblLogo.AutoSize = $true; $TitleBar.Controls.Add($LblLogo)
  $TitleBar.Add_MouseDown({ if($_.Button -eq 'Left'){ $script:DragInfo.Dragging = $true; $script:DragInfo.X = $_.X; $script:DragInfo.Y = $_.Y } })
  $TitleBar.Add_MouseMove({ if($script:DragInfo.Dragging){ $Form.Left += $_.X - $script:DragInfo.X; $Form.Top += $_.Y - $script:DragInfo.Y } })
  $TitleBar.Add_MouseUp({ $script:DragInfo.Dragging = $false })
@@ -224,12 +238,12 @@ function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = 
  $btnModDrivers = New-Object NavButton; $btnModDrivers.Text = "Drivers"; $btnModDrivers.IconType = 2; $btnModDrivers.Location = New-Object System.Drawing.Point(0, 140); $btnModDrivers.Size = New-Object System.Drawing.Size(220, 40); $btnModDrivers.BackColor = $C_BgLayer; $btnModDrivers.ForeColor = $C_TextSec; $btnModDrivers.Font = $FontGlobal; $btnModDrivers.Cursor = "Hand"; $Sidebar.Controls.Add($btnModDrivers)
 
  $PanelSpecs = New-Object System.Windows.Forms.Panel; $PanelSpecs.Location = New-Object System.Drawing.Point(15, 490); $PanelSpecs.Size = New-Object System.Drawing.Size(190, 150); $PanelSpecs.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 25); $Sidebar.Controls.Add($PanelSpecs)
- $LblSpecsTitle = New-Object System.Windows.Forms.Label; $LblSpecsTitle.Text = "ESPECIFICACIONES PC"; $LblSpecsTitle.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 8, [System.Drawing.FontStyle]::Bold); $LblSpecsTitle.ForeColor = $C_Accent; $LblSpecsTitle.Location = New-Object System.Drawing.Point(10, 5); $LblSpecsTitle.AutoSize = $true; $PanelSpecs.Controls.Add($LblSpecsTitle)
+ $LblSpecsTitle = New-Object System.Windows.Forms.Label; $LblSpecsTitle.Text = "ESPECIFICACIONES PC"; $LblSpecsTitle.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold); $LblSpecsTitle.ForeColor = $C_Accent; $LblSpecsTitle.Location = New-Object System.Drawing.Point(10, 5); $LblSpecsTitle.AutoSize = $true; $PanelSpecs.Controls.Add($LblSpecsTitle)
  $OSInfo = (Get-CimInstance Win32_OperatingSystem).Caption; $CPUInfo = (Get-CimInstance Win32_Processor).Name; $GPUInfo = (Get-CimInstance Win32_VideoController | Select-Object -First 1).Name; $RAMInfo = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 0)
- $LblOS = New-Object System.Windows.Forms.Label; $LblOS.Text = "OS: $OSInfo"; $LblOS.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9); $LblOS.ForeColor = $C_TextMain; $LblOS.Location = New-Object System.Drawing.Point(10, 30); $LblOS.AutoSize = $true
- $LblCPU = New-Object System.Windows.Forms.Label; $LblCPU.Text = "CPU: $CPUInfo"; $LblCPU.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9); $LblCPU.ForeColor = $C_TextMain; $LblCPU.Location = New-Object System.Drawing.Point(10, 60); $LblCPU.AutoSize = $true
- $LblGPU = New-Object System.Windows.Forms.Label; $LblGPU.Text = "GPU: $GPUInfo"; $LblGPU.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9); $LblGPU.ForeColor = $C_TextMain; $LblGPU.Location = New-Object System.Drawing.Point(10, 90); $LblGPU.AutoSize = $true
- $LblRAM = New-Object System.Windows.Forms.Label; $LblRAM.Text = "RAM: $RAMInfo GB"; $LblRAM.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9); $LblRAM.ForeColor = $C_TextMain; $LblRAM.Location = New-Object System.Drawing.Point(10, 120); $LblRAM.AutoSize = $true
+ $LblOS = New-Object System.Windows.Forms.Label; $LblOS.Text = "OS: $OSInfo"; $LblOS.Font = New-Object System.Drawing.Font("Segoe UI", 9); $LblOS.ForeColor = $C_TextMain; $LblOS.Location = New-Object System.Drawing.Point(10, 30); $LblOS.AutoSize = $true
+ $LblCPU = New-Object System.Windows.Forms.Label; $LblCPU.Text = "CPU: $CPUInfo"; $LblCPU.Font = New-Object System.Drawing.Font("Segoe UI", 9); $LblCPU.ForeColor = $C_TextMain; $LblCPU.Location = New-Object System.Drawing.Point(10, 60); $LblCPU.AutoSize = $true
+ $LblGPU = New-Object System.Windows.Forms.Label; $LblGPU.Text = "GPU: $GPUInfo"; $LblGPU.Font = New-Object System.Drawing.Font("Segoe UI", 9); $LblGPU.ForeColor = $C_TextMain; $LblGPU.Location = New-Object System.Drawing.Point(10, 90); $LblGPU.AutoSize = $true
+ $LblRAM = New-Object System.Windows.Forms.Label; $LblRAM.Text = "RAM: $RAMInfo GB"; $LblRAM.Font = New-Object System.Drawing.Font("Segoe UI", 9); $LblRAM.ForeColor = $C_TextMain; $LblRAM.Location = New-Object System.Drawing.Point(10, 120); $LblRAM.AutoSize = $true
 if($LblOS.Width -gt 170){ $LblOS.Text = "OS: Windows 11 Pro" }; if($LblCPU.Width -gt 170){ $LblCPU.Text = $LblCPU.Text.Substring(0, 25) + "..." }; if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." }
  $PanelSpecs.Controls.Add($LblOS); $PanelSpecs.Controls.Add($LblCPU); $PanelSpecs.Controls.Add($LblGPU); $PanelSpecs.Controls.Add($LblRAM)
 
@@ -247,7 +261,7 @@ if($LblOS.Width -gt 170){ $LblOS.Text = "OS: Windows 11 Pro" }; if($LblCPU.Width
  $btnClose = New-Object WinButton; $btnClose.IsClose = $true; $btnClose.Location = New-Object System.Drawing.Point(775, 0); $btnClose.Size = New-Object System.Drawing.Size(45, 32); $btnClose.BackColor = $C_BgBase; $btnClose.ForeColor = $C_TextSec; $btnClose.Cursor = "Hand"; $PanelHeader.Controls.Add($btnClose)
  $btnClose.Add_Click({ $Form.Close() }); $btnClose.Add_MouseEnter({ $btnClose.Invalidate() }); $btnClose.Add_MouseLeave({ $btnClose.Invalidate() })
 
- $LblHeader = New-Object System.Windows.Forms.Label; $LblHeader.Text = "Aplicaciones"; $LblHeader.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 16, [System.Drawing.FontStyle]::Bold); $LblHeader.ForeColor = $C_TextMain; $LblHeader.Location = New-Object System.Drawing.Point(0, 35); $LblHeader.AutoSize = $true; $PanelHeader.Controls.Add($LblHeader)
+ $LblHeader = New-Object System.Windows.Forms.Label; $LblHeader.Text = "Aplicaciones"; $LblHeader.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold); $LblHeader.ForeColor = $C_TextMain; $LblHeader.Location = New-Object System.Drawing.Point(0, 35); $LblHeader.AutoSize = $true; $PanelHeader.Controls.Add($LblHeader)
  $PanelSearch = New-Object System.Windows.Forms.Panel; $PanelSearch.Location = New-Object System.Drawing.Point(350, 40); $PanelSearch.Size = New-Object System.Drawing.Size(350, 35); $PanelSearch.BackColor = $C_Card; $PanelHeader.Controls.Add($PanelSearch)
  $txtSearch = New-Object System.Windows.Forms.TextBox; $txtSearch.Location = New-Object System.Drawing.Point(10, 8); $txtSearch.Size = New-Object System.Drawing.Size(220, 20); $txtSearch.BorderStyle = "None"; $txtSearch.BackColor = $C_Card; $txtSearch.ForeColor = $C_TextMain; $txtSearch.Font = $FontGlobal; $txtSearch.Text = "Buscar..."; $PanelSearch.Controls.Add($txtSearch)
  $btnRec = New-Object AccentButton; $btnRec.Text = "Recomendados"; $btnRec.Location = New-Object System.Drawing.Point(240, 5); $btnRec.Size = New-Object System.Drawing.Size(105, 25); $PanelSearch.Controls.Add($btnRec)
@@ -258,11 +272,11 @@ if($LblOS.Width -gt 170){ $LblOS.Text = "OS: Windows 11 Pro" }; if($LblCPU.Width
 # PANEL DRIVERS REDISEÑADO
  $PanelDrivers = New-Object System.Windows.Forms.Panel; $PanelDrivers.Dock = "Fill"; $PanelDrivers.BackColor = $C_BgBase; $PanelDrivers.Visible = $false; $PanelContent.Controls.Add($PanelDrivers)
 
- $btnScanDrivers = New-Object GradientButton; $btnScanDrivers.Text = "ANALIZAR DRIVERS"; $btnScanDrivers.Size = New-Object System.Drawing.Size(300, 50); $btnScanDrivers.Location = New-Object System.Drawing.Point(260, 20); $btnScanDrivers.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnScanDrivers.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnScanDrivers.ForeColor = [System.Drawing.Color]::White; $btnScanDrivers.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 12, [System.Drawing.FontStyle]::Bold); $btnScanDrivers.Cursor = "Hand"; $btnScanDrivers.CornerRadius = 8; $PanelDrivers.Controls.Add($btnScanDrivers)
+ $btnScanDrivers = New-Object GradientButton; $btnScanDrivers.Text = "ANALIZAR DRIVERS"; $btnScanDrivers.Size = New-Object System.Drawing.Size(300, 50); $btnScanDrivers.Location = New-Object System.Drawing.Point(260, 20); $btnScanDrivers.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnScanDrivers.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnScanDrivers.ForeColor = [System.Drawing.Color]::White; $btnScanDrivers.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold); $btnScanDrivers.Cursor = "Hand"; $btnScanDrivers.CornerRadius = 8; $PanelDrivers.Controls.Add($btnScanDrivers)
 
  $PanelLoading = New-Object System.Windows.Forms.Panel; $PanelLoading.Dock = "Fill"; $PanelLoading.BackColor = $C_BgBase; $PanelLoading.Visible = $false; $PanelDrivers.Controls.Add($PanelLoading)
  $ProgressRing = New-Object CircularProgress; $ProgressRing.Location = New-Object System.Drawing.Point(380, 150); $ProgressRing.Size = New-Object System.Drawing.Size(60, 60); $PanelLoading.Controls.Add($ProgressRing)
- $LblLoading = New-Object System.Windows.Forms.Label; $LblLoading.Text = "Buscando controladores y librerías..."; $LblLoading.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 11, [System.Drawing.FontStyle]::Bold); $LblLoading.ForeColor = $C_TextMain; $LblLoading.Location = New-Object System.Drawing.Point(280, 220); $LblLoading.AutoSize = $true; $PanelLoading.Controls.Add($LblLoading)
+ $LblLoading = New-Object System.Windows.Forms.Label; $LblLoading.Text = "Buscando controladores y librerías..."; $LblLoading.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold); $LblLoading.ForeColor = $C_TextMain; $LblLoading.Location = New-Object System.Drawing.Point(280, 220); $LblLoading.AutoSize = $true; $PanelLoading.Controls.Add($LblLoading)
 
  $DriverListPanel = New-Object DarkScrollPanel; $DriverListPanel.Dock = "Fill"; $DriverListPanel.BackColor = $C_BgBase; $DriverListPanel.AutoScroll = $true; $DriverListPanel.Visible = $false; $PanelDrivers.Controls.Add($DriverListPanel)
  $CardPending = New-Object CategoryCard; $CardPending.Header.Text = "  ACTUALIZACIONES PENDIENTES"; $CardPending.Inner.BackColor = $C_Card; $DriverListPanel.Controls.Add($CardPending)
@@ -270,14 +284,14 @@ if($LblOS.Width -gt 170){ $LblOS.Text = "OS: Windows 11 Pro" }; if($LblCPU.Width
 
  $PanelDriverFooter = New-Object System.Windows.Forms.Panel; $PanelDriverFooter.Dock = "Bottom"; $PanelDriverFooter.BackColor = $C_BgBase; $PanelDriverFooter.Visible = $false; $PanelDrivers.Controls.Add($PanelDriverFooter)
  $btnUpdateSelected = New-Object SecondaryButton; $btnUpdateSelected.Text = "Actualizar Seleccionados"; $btnUpdateSelected.Location = New-Object System.Drawing.Point(400, 10); $btnUpdateSelected.Size = New-Object System.Drawing.Size(180, 40); $PanelDriverFooter.Controls.Add($btnUpdateSelected)
- $btnUpdateAll = New-Object GradientButton; $btnUpdateAll.Text = "Actualizar Todos"; $btnUpdateAll.Location = New-Object System.Drawing.Point(600, 10); $btnUpdateAll.Size = New-Object System.Drawing.Size(180, 40); $btnUpdateAll.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnUpdateAll.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnUpdateAll.ForeColor = [System.Drawing.Color]::White; $btnUpdateAll.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9, [System.Drawing.FontStyle]::Bold); $btnUpdateAll.Cursor = "Hand"; $btnUpdateAll.CornerRadius = 8; $PanelDriverFooter.Controls.Add($btnUpdateAll)
+ $btnUpdateAll = New-Object GradientButton; $btnUpdateAll.Text = "Actualizar Todos"; $btnUpdateAll.Location = New-Object System.Drawing.Point(600, 10); $btnUpdateAll.Size = New-Object System.Drawing.Size(180, 40); $btnUpdateAll.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnUpdateAll.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnUpdateAll.ForeColor = [System.Drawing.Color]::White; $btnUpdateAll.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold); $btnUpdateAll.Cursor = "Hand"; $btnUpdateAll.CornerRadius = 8; $PanelDriverFooter.Controls.Add($btnUpdateAll)
 
 # FOOTER GLOBAL
  $PanelFooter = New-Object System.Windows.Forms.Panel; $PanelFooter.Dock = "Fill"; $PanelFooter.BackColor = $C_BgBase; $TableLayout.Controls.Add($PanelFooter, 0, 2)
- $LblStatus = New-Object System.Windows.Forms.Label; $LblStatus.Text = "ESTADO: LISTO"; $LblStatus.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 9, [System.Drawing.FontStyle]::Bold); $LblStatus.ForeColor = $C_Accent; $LblStatus.Location = New-Object System.Drawing.Point(0, 20); $LblStatus.AutoSize = $true; $PanelFooter.Controls.Add($LblStatus)
- $LblLog = New-Object System.Windows.Forms.Label; $LblLog.Text = "icezOP iniciado."; $LblLog.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 8); $LblLog.ForeColor = $C_TextSec; $LblLog.Location = New-Object System.Drawing.Point(120, 22); $LblLog.AutoSize = $true; $PanelFooter.Controls.Add($LblLog)
+ $LblStatus = New-Object System.Windows.Forms.Label; $LblStatus.Text = "ESTADO: LISTO"; $LblStatus.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold); $LblStatus.ForeColor = $C_Accent; $LblStatus.Location = New-Object System.Drawing.Point(0, 20); $LblStatus.AutoSize = $true; $PanelFooter.Controls.Add($LblStatus)
+ $LblLog = New-Object System.Windows.Forms.Label; $LblLog.Text = "icezOP iniciado."; $LblLog.Font = New-Object System.Drawing.Font("Segoe UI", 8); $LblLog.ForeColor = $C_TextSec; $LblLog.Location = New-Object System.Drawing.Point(120, 22); $LblLog.AutoSize = $true; $PanelFooter.Controls.Add($LblLog)
  $ProgressBar = New-Object System.Windows.Forms.ProgressBar; $ProgressBar.Location = New-Object System.Drawing.Point(0, 45); $ProgressBar.Size = New-Object System.Drawing.Size(580, 4); $ProgressBar.Style = "Continuous"; $ProgressBar.ForeColor = $C_Accent; $ProgressBar.BackColor = $C_Card; $PanelFooter.Controls.Add($ProgressBar)
- $btnExecute = New-Object GradientButton; $btnExecute.Text = "EJECUTAR"; $btnExecute.Location = New-Object System.Drawing.Point(600, 10); $btnExecute.Size = New-Object System.Drawing.Size(220, 40); $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnExecute.ForeColor = [System.Drawing.Color]::White; $btnExecute.Font = New-Object System.Drawing.Font("Segoe UI Variable Text", 11, [System.Drawing.FontStyle]::Bold); $btnExecute.Cursor = "Hand"; $btnExecute.CornerRadius = 8; $PanelFooter.Controls.Add($btnExecute)
+ $btnExecute = New-Object GradientButton; $btnExecute.Text = "EJECUTAR"; $btnExecute.Location = New-Object System.Drawing.Point(600, 10); $btnExecute.Size = New-Object System.Drawing.Size(220, 40); $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnExecute.ForeColor = [System.Drawing.Color]::White; $btnExecute.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold); $btnExecute.Cursor = "Hand"; $btnExecute.CornerRadius = 8; $PanelFooter.Controls.Add($btnExecute)
 
  # --- CATÁLOGOS JSON INTEGRADOS ---
  $AppsJson = @"
