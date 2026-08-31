@@ -1,0 +1,12 @@
+[
+  { "Match": "(?i)NVIDIA GeForce (RTX|GTX|GT)", "Latest": "32.0.15.6109", "Action": "winget", "Id": "Nvidia.GeForceExperience", "Note": "GeForce Experience" },
+  { "Match": "(?i)AMD Radeon", "Latest": "32.0.12033.1030", "Action": "url", "Url": "https://www.amd.com/es/support" },
+  { "Match": "(?i)Intel\\(R\\) (UHD|Iris|HD) Graphics", "Latest": "31.0.101.5333", "Action": "url", "Url": "https://www.intel.com/content/www/us/en/download-center/home.html" },
+  { "Match": "(?i)Intel\\(R\\) Arc", "Latest": "31.0.101.5333", "Action": "url", "Url": "https://www.intel.com/content/www/us/en/download-center/home.html" },
+  { "Match": "(?i)Realtek.*Audio", "Latest": "6.0.9600.1", "Action": "url", "Url": "https://www.realtek.com/Download" },
+  { "Match": "(?i)Realtek.*(GbE|Ethernet|PCIe)", "Latest": "1160.011", "Action": "url", "Url": "https://www.realtek.com/Download" },
+  { "Match": "(?i)Intel\\(R\\) Wi-?Fi|Intel\\(R\\) Wireless", "Latest": "23.20.0", "Action": "url", "Url": "https://www.intel.com/content/www/us/en/download-center/home.html" },
+  { "Match": "(?i)Intel\\(R\\) Ethernet", "Latest": "12.19.1.11", "Action": "url", "Url": "https://www.intel.com/content/www/us/en/download-center/home.html" },
+  { "Match": "(?i)MediaTek.*Wi-?Fi", "Latest": "5.0.3.0", "Action": "url", "Url": "https://www.mediatek.com/downloads" },
+  { "Match": "(?i)AMD.*(PSP|SMBus|GPIO|Chipset)", "Latest": "7.06.02.123", "Action": "url", "Url": "https://www.amd.com/es/support/chipsets" }
+]
