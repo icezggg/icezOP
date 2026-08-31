@@ -211,6 +211,7 @@ function icezG([string]$N) {
         'Play' { [string][char]0xE768 }
         'X'    { [string][char]0xE8BB }
         'Min'  { [string][char]0xE921 }
+        'Prof' { [string][char]0xE77B }
         default { '' }
     }
 }
@@ -600,22 +601,244 @@ namespace IcezOP
         }
     }
 
+    // ── Iconos vectoriales por categoria (dibujados a mano, sin fuentes) ──
+    public static class CatIcons
+    {
+        public static void Draw(Graphics g, int kind, RectangleF r, Color c)
+        {
+            if (kind <= 0 || r.Width < 4f) return;
+            float s = r.Width;
+            float cx = r.X + s / 2f;
+            float cy = r.Y + s / 2f;
+            float pw = Math.Max(1.5f, s / 13f);
+            using (Pen p = new Pen(c, pw))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                using (SolidBrush b = new SolidBrush(c))
+                {
+                    switch (kind)
+                    {
+                        case 1: { // Navegador: globo
+                            g.DrawEllipse(p, r);
+                            g.DrawLine(p, r.X, cy, r.Right, cy);
+                            g.DrawEllipse(p, cx - s * 0.25f, r.Y, s * 0.5f, s);
+                            break;
+                        }
+                        case 2: { // Comunicacion: burbuja con puntos
+                            using (GraphicsPath bb = Gfx.Round(new RectangleF(r.X, r.Y + s * 0.05f, s, s * 0.72f), s * 0.16f)) g.DrawPath(p, bb);
+                            g.DrawLines(p, new PointF[] { new PointF(r.X + s * 0.30f, r.Y + s * 0.74f), new PointF(r.X + s * 0.24f, r.Y + s * 0.95f), new PointF(r.X + s * 0.48f, r.Y + s * 0.78f) });
+                            g.FillEllipse(b, r.X + s * 0.24f, r.Y + s * 0.38f, s * 0.10f, s * 0.10f);
+                            g.FillEllipse(b, r.X + s * 0.45f, r.Y + s * 0.38f, s * 0.10f, s * 0.10f);
+                            g.FillEllipse(b, r.X + s * 0.66f, r.Y + s * 0.38f, s * 0.10f, s * 0.10f);
+                            break;
+                        }
+                        case 3: { // Programacion: < / >
+                            g.DrawLines(p, new PointF[] { new PointF(cx - s * 0.13f, cy - s * 0.24f), new PointF(cx - s * 0.34f, cy), new PointF(cx - s * 0.13f, cy + s * 0.24f) });
+                            g.DrawLines(p, new PointF[] { new PointF(cx + s * 0.13f, cy - s * 0.24f), new PointF(cx + s * 0.34f, cy), new PointF(cx + s * 0.13f, cy + s * 0.24f) });
+                            g.DrawLine(p, cx - s * 0.05f, cy - s * 0.30f, cx + s * 0.05f, cy + s * 0.30f);
+                            break;
+                        }
+                        case 4: { // Juegos: gamepad
+                            using (GraphicsPath bd = Gfx.Round(new RectangleF(r.X, r.Y + s * 0.22f, s, s * 0.58f), s * 0.26f)) g.DrawPath(p, bd);
+                            g.DrawLine(p, r.X + s * 0.20f, cy + s * 0.02f, r.X + s * 0.38f, cy + s * 0.02f);
+                            g.DrawLine(p, r.X + s * 0.29f, cy - s * 0.07f, r.X + s * 0.29f, cy + s * 0.11f);
+                            g.FillEllipse(b, r.Right - s * 0.36f, cy - s * 0.08f, s * 0.10f, s * 0.10f);
+                            g.FillEllipse(b, r.Right - s * 0.22f, cy + s * 0.02f, s * 0.10f, s * 0.10f);
+                            break;
+                        }
+                        case 5: { // Video: pantalla + play
+                            using (GraphicsPath sc = Gfx.Round(new RectangleF(r.X, r.Y + s * 0.14f, s, s * 0.72f), s * 0.12f)) g.DrawPath(p, sc);
+                            g.FillPolygon(b, new PointF[] { new PointF(cx - s * 0.09f, cy - s * 0.13f), new PointF(cx + s * 0.13f, cy), new PointF(cx - s * 0.09f, cy + s * 0.13f) });
+                            break;
+                        }
+                        case 6: { // Imagen: foto (sol + montanas)
+                            using (GraphicsPath fr = Gfx.Round(new RectangleF(r.X, r.Y + s * 0.06f, s, s * 0.88f), s * 0.12f)) g.DrawPath(p, fr);
+                            g.FillEllipse(b, r.X + s * 0.16f, r.Y + s * 0.20f, s * 0.16f, s * 0.16f);
+                            g.DrawLines(p, new PointF[] { new PointF(r.X + s * 0.14f, r.Bottom - s * 0.16f), new PointF(cx - s * 0.04f, cy + s * 0.04f), new PointF(cx + s * 0.12f, r.Bottom - s * 0.16f) });
+                            g.DrawLines(p, new PointF[] { new PointF(cx + s * 0.02f, r.Bottom - s * 0.16f), new PointF(cx + s * 0.26f, r.Y + s * 0.34f), new PointF(r.Right - s * 0.10f, r.Bottom - s * 0.16f) });
+                            break;
+                        }
+                        case 7: { // Audio: nota musical
+                            g.FillEllipse(b, r.X + s * 0.18f, cy + s * 0.02f, s * 0.30f, s * 0.26f);
+                            g.DrawLine(p, r.X + s * 0.46f, cy + s * 0.06f, r.X + s * 0.46f, r.Y + s * 0.10f);
+                            g.DrawLines(p, new PointF[] { new PointF(r.X + s * 0.46f, r.Y + s * 0.10f), new PointF(r.Right - s * 0.16f, r.Y + s * 0.26f), new PointF(r.Right - s * 0.16f, r.Y + s * 0.46f) });
+                            break;
+                        }
+                        case 8: { // Ofimatica: hoja con doblez
+                            float x0 = r.X + s * 0.24f, x1 = r.Right - s * 0.24f, y0 = r.Y + s * 0.04f, y1 = r.Bottom - s * 0.04f, fd = s * 0.20f;
+                            g.DrawPolygon(p, new PointF[] { new PointF(x0, y0), new PointF(x1 - fd, y0), new PointF(x1, y0 + fd), new PointF(x1, y1), new PointF(x0, y1) });
+                            g.DrawLine(p, x1 - fd, y0, x1 - fd, y0 + fd);
+                            g.DrawLine(p, x0 + s * 0.08f, y0 + s * 0.34f, x1 - s * 0.10f, y0 + s * 0.34f);
+                            g.DrawLine(p, x0 + s * 0.08f, y0 + s * 0.50f, x1 - s * 0.10f, y0 + s * 0.50f);
+                            break;
+                        }
+                        case 9: { // PDF: hoja + candado
+                            float x0 = r.X + s * 0.24f, x1 = r.Right - s * 0.24f, y0 = r.Y + s * 0.04f, y1 = r.Bottom - s * 0.04f, fd = s * 0.20f;
+                            g.DrawPolygon(p, new PointF[] { new PointF(x0, y0), new PointF(x1 - fd, y0), new PointF(x1, y0 + fd), new PointF(x1, y1), new PointF(x0, y1) });
+                            RectangleF lk = new RectangleF(cx - s * 0.17f, cy + s * 0.02f, s * 0.34f, s * 0.26f);
+                            using (GraphicsPath lp = Gfx.Round(lk, s * 0.05f)) g.DrawPath(p, lp);
+                            g.DrawArc(p, cx - s * 0.11f, cy - s * 0.14f, s * 0.22f, s * 0.22f, 180f, 180f);
+                            break;
+                        }
+                        case 10: { // Utilidades: maletin
+                            using (GraphicsPath bx = Gfx.Round(new RectangleF(r.X + s * 0.06f, r.Y + s * 0.26f, s * 0.88f, s * 0.62f), s * 0.10f)) g.DrawPath(p, bx);
+                            g.DrawArc(p, cx - s * 0.16f, r.Y + s * 0.10f, s * 0.32f, s * 0.36f, 180f, 180f);
+                            g.DrawLine(p, r.X + s * 0.34f, cy - s * 0.04f, r.Right - s * 0.34f, cy - s * 0.04f);
+                            break;
+                        }
+                        case 11: { // Seguridad/Privacidad: escudo + check
+                            g.DrawPolygon(p, new PointF[] {
+                                new PointF(cx, r.Y + s * 0.06f),
+                                new PointF(r.Right - s * 0.16f, r.Y + s * 0.20f),
+                                new PointF(r.Right - s * 0.18f, cy + s * 0.08f),
+                                new PointF(cx, r.Bottom - s * 0.06f),
+                                new PointF(r.X + s * 0.18f, cy + s * 0.08f),
+                                new PointF(r.X + s * 0.16f, r.Y + s * 0.20f)
+                            });
+                            g.DrawLines(p, new PointF[] { new PointF(cx - s * 0.10f, cy - s * 0.02f), new PointF(cx - s * 0.02f, cy + s * 0.08f), new PointF(cx + s * 0.12f, cy - s * 0.10f) });
+                            break;
+                        }
+                        case 12: { // Downloads: flecha + bandeja
+                            g.DrawLine(p, cx, r.Y + s * 0.08f, cx, cy + s * 0.08f);
+                            g.DrawLines(p, new PointF[] { new PointF(cx - s * 0.16f, cy - s * 0.04f), new PointF(cx, cy + s * 0.12f), new PointF(cx + s * 0.16f, cy - s * 0.04f) });
+                            g.DrawArc(p, r.X + s * 0.08f, r.Bottom - s * 0.42f, s * 0.84f, s * 0.52f, 15f, 150f);
+                            break;
+                        }
+                        case 13: { // Cloud: nube
+                            g.DrawArc(p, cx - s * 0.26f, r.Y + s * 0.20f, s * 0.52f, s * 0.52f, 130f, 300f);
+                            g.DrawArc(p, r.X + s * 0.10f, r.Y + s * 0.36f, s * 0.34f, s * 0.34f, 90f, 180f);
+                            g.DrawArc(p, r.Right - s * 0.44f, r.Y + s * 0.36f, s * 0.34f, s * 0.34f, 0f, 180f);
+                            g.DrawLine(p, r.X + s * 0.16f, r.Y + s * 0.53f, r.Right - s * 0.16f, r.Y + s * 0.53f);
+                            break;
+                        }
+                        case 14: { // Remote: monitor
+                            using (GraphicsPath mn = Gfx.Round(new RectangleF(r.X + s * 0.06f, r.Y + s * 0.12f, s * 0.88f, s * 0.60f), s * 0.08f)) g.DrawPath(p, mn);
+                            g.DrawLine(p, cx, r.Y + s * 0.72f, cx, r.Y + s * 0.86f);
+                            g.DrawLine(p, cx - s * 0.18f, r.Bottom - s * 0.08f, cx + s * 0.18f, r.Bottom - s * 0.08f);
+                            break;
+                        }
+                        case 15: { // Generico: estrella
+                            g.DrawPolygon(p, new PointF[] {
+                                new PointF(cx, r.Y + s * 0.04f),
+                                new PointF(cx + s * 0.12f, cy - s * 0.08f),
+                                new PointF(r.Right - s * 0.06f, cy - s * 0.08f),
+                                new PointF(cx + s * 0.16f, cy + s * 0.10f),
+                                new PointF(cx + s * 0.22f, r.Bottom - s * 0.06f),
+                                new PointF(cx, cy + s * 0.18f),
+                                new PointF(r.X + s * 0.22f, r.Bottom - s * 0.06f),
+                                new PointF(r.X + s * 0.16f, cy + s * 0.10f),
+                                new PointF(r.X + s * 0.06f, cy - s * 0.08f),
+                                new PointF(cx - s * 0.12f, cy - s * 0.08f)
+                            });
+                            break;
+                        }
+                        case 16: { // IA: robot
+                            using (GraphicsPath hd = Gfx.Round(new RectangleF(r.X + s * 0.10f, r.Y + s * 0.26f, s * 0.80f, s * 0.56f), s * 0.14f)) g.DrawPath(p, hd);
+                            g.DrawLine(p, cx, r.Y + s * 0.26f, cx, r.Y + s * 0.10f);
+                            g.FillEllipse(b, cx - s * 0.04f, r.Y + s * 0.02f, s * 0.08f, s * 0.08f);
+                            g.FillEllipse(b, cx - s * 0.18f, cy - s * 0.06f, s * 0.11f, s * 0.11f);
+                            g.FillEllipse(b, cx + s * 0.07f, cy - s * 0.06f, s * 0.11f, s * 0.11f);
+                            g.DrawLine(p, cx - s * 0.10f, cy + s * 0.16f, cx + s * 0.10f, cy + s * 0.16f);
+                            break;
+                        }
+                        case 17: { // Interfaz: carpeta
+                            using (GraphicsPath fo = Gfx.Round(new RectangleF(r.X + s * 0.04f, r.Y + s * 0.26f, s * 0.92f, s * 0.60f), s * 0.08f)) g.DrawPath(p, fo);
+                            g.DrawLines(p, new PointF[] { new PointF(r.X + s * 0.04f, r.Y + s * 0.26f), new PointF(r.X + s * 0.04f, r.Y + s * 0.16f), new PointF(r.X + s * 0.26f, r.Y + s * 0.12f), new PointF(r.X + s * 0.36f, r.Y + s * 0.26f) });
+                            break;
+                        }
+                        case 18: { // Apariencia: paleta
+                            g.DrawEllipse(p, new RectangleF(r.X + s * 0.02f, r.Y + s * 0.02f, s * 0.96f, s * 0.96f));
+                            g.FillEllipse(b, cx - s * 0.24f, cy - s * 0.24f, s * 0.13f, s * 0.13f);
+                            g.FillEllipse(b, cx + s * 0.01f, cy - s * 0.28f, s * 0.13f, s * 0.13f);
+                            g.FillEllipse(b, cx - s * 0.28f, cy + s * 0.01f, s * 0.13f, s * 0.13f);
+                            g.DrawEllipse(p, cx + s * 0.02f, cy + s * 0.04f, s * 0.22f, s * 0.22f);
+                            break;
+                        }
+                        case 19: { // Energia: rayo
+                            g.FillPolygon(b, new PointF[] {
+                                new PointF(r.X + s * 0.58f, r.Y + s * 0.06f),
+                                new PointF(r.X + s * 0.28f, r.Y + s * 0.52f),
+                                new PointF(r.X + s * 0.50f, r.Y + s * 0.52f),
+                                new PointF(r.X + s * 0.42f, r.Bottom - s * 0.04f),
+                                new PointF(r.X + s * 0.76f, r.Y + s * 0.42f),
+                                new PointF(r.X + s * 0.54f, r.Y + s * 0.42f)
+                            });
+                            break;
+                        }
+                        case 20: { // Rendimiento: velocimetro
+                            g.DrawArc(p, r.X + s * 0.08f, r.Y + s * 0.22f, s * 0.84f, s * 0.84f, 180f, 180f);
+                            g.DrawLine(p, cx, r.Y + s * 0.64f, cx + s * 0.24f, r.Y + s * 0.36f);
+                            g.FillEllipse(b, cx - s * 0.06f, r.Y + s * 0.58f, s * 0.12f, s * 0.12f);
+                            break;
+                        }
+                        case 21: { // Gaming: mira
+                            g.DrawEllipse(p, new RectangleF(cx - s * 0.32f, cy - s * 0.32f, s * 0.64f, s * 0.64f));
+                            g.DrawLine(p, cx, cy - s * 0.44f, cx, cy - s * 0.20f);
+                            g.DrawLine(p, cx, cy + s * 0.20f, cx, cy + s * 0.44f);
+                            g.DrawLine(p, cx - s * 0.44f, cy, cx - s * 0.20f, cy);
+                            g.DrawLine(p, cx + s * 0.20f, cy, cx + s * 0.44f, cy);
+                            g.FillEllipse(b, cx - s * 0.05f, cy - s * 0.05f, s * 0.10f, s * 0.10f);
+                            break;
+                        }
+                        case 22: { // Red: nodos conectados
+                            g.FillEllipse(b, cx - s * 0.10f, r.Y + s * 0.02f, s * 0.20f, s * 0.20f);
+                            g.FillEllipse(b, r.X + s * 0.04f, r.Bottom - s * 0.26f, s * 0.20f, s * 0.20f);
+                            g.FillEllipse(b, r.Right - s * 0.24f, r.Bottom - s * 0.26f, s * 0.20f, s * 0.20f);
+                            g.DrawLine(p, cx - s * 0.04f, r.Y + s * 0.22f, r.X + s * 0.16f, r.Bottom - s * 0.26f);
+                            g.DrawLine(p, cx + s * 0.04f, r.Y + s * 0.22f, r.Right - s * 0.14f, r.Bottom - s * 0.26f);
+                            g.DrawLine(p, r.X + s * 0.26f, r.Bottom - s * 0.16f, r.Right - s * 0.26f, r.Bottom - s * 0.16f);
+                            break;
+                        }
+                        case 23: { // Servicios: engranaje
+                            float rr = s * 0.30f;
+                            g.DrawEllipse(p, cx - rr, cy - rr, rr * 2f, rr * 2f);
+                            g.DrawEllipse(p, cx - rr * 0.40f, cy - rr * 0.40f, rr * 0.80f, rr * 0.80f);
+                            for (int i = 0; i < 8; i++)
+                            {
+                                double a = i * Math.PI / 4.0;
+                                float c1 = (float)Math.Cos(a), s1 = (float)Math.Sin(a);
+                                g.DrawLine(p, cx + c1 * rr, cy + s1 * rr, cx + c1 * (rr + s * 0.12f), cy + s1 * (rr + s * 0.12f));
+                            }
+                            break;
+                        }
+                        case 24: { // Tareas programadas: reloj
+                            g.DrawEllipse(p, new RectangleF(cx - s * 0.36f, cy - s * 0.36f, s * 0.72f, s * 0.72f));
+                            g.DrawLine(p, cx, cy, cx, cy - s * 0.22f);
+                            g.DrawLine(p, cx, cy, cx + s * 0.16f, cy + s * 0.06f);
+                            break;
+                        }
+                        case 25: { // Experimental: advertencia
+                            g.DrawPolygon(p, new PointF[] { new PointF(cx, r.Y + s * 0.08f), new PointF(r.Right - s * 0.04f, r.Bottom - s * 0.12f), new PointF(r.X + s * 0.04f, r.Bottom - s * 0.12f) });
+                            g.DrawLine(p, cx, cy - s * 0.08f, cx, cy + s * 0.10f);
+                            g.FillEllipse(b, cx - s * 0.04f, cy + s * 0.17f, s * 0.08f, s * 0.08f);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public class CategoryTile : Control
     {
         private bool hov;
         private string title;
         private string sub;
         private string mono;
+        private int iconKind;
         private bool subAcc;
         public string Title { get { return title; } set { title = value; Invalidate(); } }
         public string Subtitle { get { return sub; } set { sub = value; Invalidate(); } }
         public string Monogram { get { return mono; } set { mono = value; Invalidate(); } }
+        public int IconKind { get { return iconKind; } set { iconKind = value; Invalidate(); } }
         public bool SubAccent { get { return subAcc; } set { subAcc = value; Invalidate(); } }
         public CategoryTile()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
+            iconKind = 0;
         }
         protected override void OnMouseEnter(EventArgs e) { hov = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hov = false; Invalidate(); base.OnMouseLeave(e); }
@@ -636,13 +859,22 @@ namespace IcezOP
             using (GraphicsPath mp = Gfx.Round(mr, 12f))
             using (LinearGradientBrush lb = new LinearGradientBrush(mr, Theme.AccL, Theme.AccD, LinearGradientMode.Vertical))
                 g.FillPath(lb, mp);
-            using (Font mf = new Font("Segoe UI Semibold", 14F))
+            if (iconKind > 0)
             {
-                string s = string.IsNullOrEmpty(mono) ? "?" : mono;
-                if (s.Length > 2) s = s.Substring(0, 2);
-                SizeF msz = g.MeasureString(s, mf);
-                using (SolidBrush b = new SolidBrush(Color.White))
-                    g.DrawString(s, mf, b, mr.X + (ms - msz.Width) / 2f, mr.Y + (ms - msz.Height) / 2f);
+                // Icono vectorial propio (sin fuentes de iconos)
+                RectangleF ir = new RectangleF(mr.X + 9f, mr.Y + 9f, mr.Width - 18f, mr.Height - 18f);
+                CatIcons.Draw(g, iconKind, ir, Color.White);
+            }
+            else
+            {
+                using (Font mf = new Font("Segoe UI Semibold", 14F))
+                {
+                    string s = string.IsNullOrEmpty(mono) ? "?" : mono;
+                    if (s.Length > 2) s = s.Substring(0, 2);
+                    SizeF msz = g.MeasureString(s, mf);
+                    using (SolidBrush b = new SolidBrush(Color.White))
+                        g.DrawString(s, mf, b, mr.X + (ms - msz.Width) / 2f, mr.Y + (ms - msz.Height) / 2f);
+                }
             }
             Rectangle tr1 = new Rectangle(68, 0, Width - 82, Height / 2);
             Rectangle tr2 = new Rectangle(68, Height / 2, Width - 82, Height / 2 - 2);
@@ -751,8 +983,43 @@ namespace IcezOP
 }
 '@
 
-if (-not ('IcezOP.IcezCheckBox' -as [type])) {
-    Add-Type -TypeDefinition $cs -ReferencedAssemblies @('System.dll','System.Drawing.dll','System.Windows.Forms.dll')
+if (-not ('IcezOP.CatIcons' -as [type])) {
+    try {
+        Add-Type -TypeDefinition $cs -ReferencedAssemblies @('System.dll','System.Drawing.dll','System.Windows.Forms.dll')
+    } catch {}
+}
+
+# Icono por categoria: mapeo semantico + fallback determinista por hash
+# (categorias nuevas en los JSON reciben automaticamente un icono estable)
+function Get-CatIconKind([string]$Cat) {
+    $c = $Cat.ToLower()
+    if ($c -match 'gaming|fps|dvr')                        { return 21 }
+    if ($c -match 'navegad|browser|web')                   { return 1 }
+    if ($c -match 'comunic|chat|messa|social|voip')        { return 2 }
+    if ($c -match 'program|dev|code|script|ide')           { return 3 }
+    if ($c -match 'juego|game')                            { return 4 }
+    if ($c -match 'video|stream|media|pelicul|edicion')    { return 5 }
+    if ($c -match 'imagen|image|foto|dise|graphic|3d')     { return 6 }
+    if ($c -match 'audio|music|sonid')                     { return 7 }
+    if ($c -match 'ofimatic|office|document|texto|notas')  { return 8 }
+    if ($c -match 'pdf|lect')                              { return 9 }
+    if ($c -match 'utilidad|tool|herramient|compres|sistema') { return 10 }
+    if ($c -match 'segur|antivir|privac|telemetr|firewall|spy') { return 11 }
+    if ($c -match 'download|descarg|torrent')              { return 12 }
+    if ($c -match 'cloud|nube|backup|sincron')             { return 13 }
+    if ($c -match 'remote|remot|escritorio')               { return 14 }
+    if ($c -match 'copilot|\bia\b|inteligencia|ai')        { return 16 }
+    if ($c -match 'interfaz|explorador|explorer|contextual|menu|barra') { return 17 }
+    if ($c -match 'apariencia|tema|visual|dark|transparen|personaliz')  { return 18 }
+    if ($c -match 'energ|bateri|power')                    { return 19 }
+    if ($c -match 'rendimiento|performance|optimiz')       { return 20 }
+    if ($c -match 'red|ping|internet|dns|tcp|network')     { return 22 }
+    if ($c -match 'servicio|service|msconfig')             { return 23 }
+    if ($c -match 'tarea|programad|scheduled|mantenim')    { return 24 }
+    if ($c -match 'riesgo|experimental|peligro')           { return 25 }
+    $h = 0
+    foreach ($ch in $Cat.ToCharArray()) { $h = ($h * 31 + [int]$ch) % 100003 }
+    return (1 + ($h % 25))
 }
 
 # Aplicar el tema guardado ANTES de construir la interfaz
@@ -1223,7 +1490,8 @@ New-NavItem (icezG 'Home') 'Inicio'        'home' 20
 New-NavItem (icezG 'Apps') 'Aplicaciones'  'apps' 68
 New-NavItem (icezG 'Fix')  'Tweaks'        'tweaks' 116
 New-NavItem (icezG 'Drv')  'Controladores' 'drivers' 164
-New-NavItem (icezG 'Gear') 'Ajustes'       'settings' 212
+New-NavItem (icezG 'Prof') 'Perfiles'      'profiles' 212
+New-NavItem (icezG 'Gear') 'Ajustes'       'settings' 260
 
 # ── Host de contenido (Dock Fill) ──────────────────────────────────
  $content = New-Object System.Windows.Forms.Panel
@@ -1320,6 +1588,7 @@ foreach ($cat in $Script:AppCats) {
     $tile.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 10)
     $tile.Title = [string]$cat
     $tile.Monogram = ([string]$cat).Substring(0, 1)
+        if ($tile.GetType().GetProperty('IconKind')) { $tile.IconKind = Get-CatIconKind ([string]$cat) }
     $tile.Tag = [string]$cat
     $tile.Add_Click({ Show-CategoryModal -Category ([string]$this.Tag) -Type 'app' })
     $Script:AppTiles[[string]$cat] = $tile
@@ -1346,6 +1615,7 @@ foreach ($cat in $Script:TweakCats) {
     $tile.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 10)
     $tile.Title = [string]$cat
     $tile.Monogram = ([string]$cat).Substring(0, 1)
+        if ($tile.GetType().GetProperty('IconKind')) { $tile.IconKind = Get-CatIconKind ([string]$cat) }
     $tile.Tag = [string]$cat
     $tile.Add_Click({ Show-CategoryModal -Category ([string]$this.Tag) -Type 'tweak' })
     $Script:TweakTiles[[string]$cat] = $tile
@@ -1358,18 +1628,22 @@ foreach ($cat in $Script:TweakCats) {
 # Cargar el motor de drivers (drivers-engine.ps1):
 # 1) junto al script  2) cache en ProgramData  3) descargar del repositorio
  $Script:EnginePath = $null
-foreach ($cand in @((Join-Path $Script:Root 'drivers-engine.ps1'), (Join-Path $env:ProgramData 'icezOP\drivers-engine.ps1'))) {
-    if (Test-Path -LiteralPath $cand) { $Script:EnginePath = $cand; break }
-}
-if (-not $Script:EnginePath) {
+ $localEngine = Join-Path $Script:Root 'drivers-engine.ps1'
+if (Test-Path -LiteralPath $localEngine) {
+    $Script:EnginePath = $localEngine
+} else {
+    # Siempre descargar la ultima version del repo; el cache es solo fallback
+    $cacheDir = Join-Path $env:ProgramData 'icezOP'
+    $cacheFile = Join-Path $cacheDir 'drivers-engine.ps1'
+    $downloaded = $false
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $dstDir = Join-Path $env:ProgramData 'icezOP'
-        if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
-        $dstFile = Join-Path $dstDir 'drivers-engine.ps1'
-        Invoke-WebRequest -Uri ($Script:RepoBase + '/drivers-engine.ps1') -OutFile $dstFile -UseBasicParsing
-        $Script:EnginePath = $dstFile
+        if (-not (Test-Path $cacheDir)) { New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null }
+        Invoke-WebRequest -Uri ($Script:RepoBase + '/drivers-engine.ps1') -OutFile $cacheFile -UseBasicParsing
+        $downloaded = $true
     } catch {}
+    if ($downloaded) { $Script:EnginePath = $cacheFile }
+    elseif (Test-Path -LiteralPath $cacheFile) { $Script:EnginePath = $cacheFile }
 }
 if ($Script:EnginePath) {
     . $Script:EnginePath
@@ -1378,6 +1652,273 @@ if ($Script:EnginePath) {
     $pDrv.Controls.Add((New-Label 'Controladores' 24 16 400 34 15 'Text' -Bold))
     $pDrv.Controls.Add((New-Label 'No se pudo cargar drivers-engine.ps1. Subilo al repositorio o colocalo junto a icezop.ps1.' 24 48 800 40 9.5 'Err'))
 }
+
+# ═══════════ PAGINA: PERFILES ═══════════
+# Sistema de perfiles: guarda la seleccion de apps+tweaks, reutilizala o
+# compartila. Se guarda en %APPDATA%\icezOP\profiles\*.icezprofile.json
+# Nota: los handlers usan $control.Tag (sin GetNewClosure, ver motor drivers).
+
+ $Script:ProfilesDir = Join-Path $env:APPDATA 'icezOP\profiles'
+
+function Get-CurrentSelectionProfile {
+    $apps = @($Script:Apps | Where-Object { [bool]$Script:AppSel[[string]$_.ID] } | ForEach-Object { [string]$_.ID })
+    $twk  = @($Script:Tweaks | Where-Object { [bool]$Script:TweakSel[($_.Cat + '|' + $_.Name)] } | ForEach-Object { ([string]$_.Cat + '|' + [string]$_.Name) })
+    return @{
+        Name        = ''
+        Created     = (Get-Date -Format 'yyyy-MM-dd HH:mm')
+        IcezVersion = $Script:Version
+        Apps        = $apps
+        Tweaks      = $twk
+    }
+}
+
+function Save-ProfileToFile {
+    param($Data, [string]$Path)
+    try {
+        $dir = Split-Path -Parent $Path
+        if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        $o = [ordered]@{}
+        $o['Name'] = [string]$Data.Name
+        $o['Created'] = [string]$Data.Created
+        $o['IcezVersion'] = [string]$Data.IcezVersion
+        $o['Apps'] = @($Data.Apps)
+        $o['Tweaks'] = @($Data.Tweaks)
+        ConvertTo-Json $o -Depth 4 | Set-Content -LiteralPath $Path -Encoding UTF8
+        return $true
+    } catch { return $false }
+}
+
+function Save-CurrentProfile {
+    $name = ''
+    if ($Script:ProfNameBox) { $name = $Script:ProfNameBox.Text.Trim() }
+    if (-not $name) {
+        $Script:ProfHint.Text = 'Escribe un nombre para el perfil primero.'
+        $Script:ProfHint.ForeColor = (icezCol 'Warn')
+        return
+    }
+    $data = Get-CurrentSelectionProfile
+    $data.Name = $name
+    $slug = ($name -replace '[^A-Za-z0-9\-_ ]', '') -replace ' ', '_'
+    if (-not $slug) { $slug = 'perfil' }
+    $path = Join-Path $Script:ProfilesDir ($slug + '.icezprofile.json')
+    $i = 1
+    while (Test-Path -LiteralPath $path) { $path = Join-Path $Script:ProfilesDir ($slug + '_' + $i + '.icezprofile.json'); $i++ }
+    if (Save-ProfileToFile $data $path) {
+        $Script:ProfHint.Text = ('Perfil guardado: {0} ({1} apps, {2} tweaks)' -f $name, @($data.Apps).Count, @($data.Tweaks).Count)
+        $Script:ProfHint.ForeColor = (icezCol 'Ok')
+        if ($Script:ProfNameBox) { $Script:ProfNameBox.Text = '' }
+        Refresh-ProfileList
+    } else {
+        $Script:ProfHint.Text = 'No se pudo guardar el perfil (revisa permisos de escritura).'
+        $Script:ProfHint.ForeColor = (icezCol 'Err')
+    }
+}
+
+function Apply-ProfileData {
+    param($Data)
+    $applied = 0
+    $skipped = 0
+    foreach ($id in @($Data.Apps)) {
+        if (@($Script:Apps | Where-Object { [string]$_.ID -eq [string]$id }).Count -gt 0) {
+            $Script:AppSel[[string]$id] = $true
+            $applied++
+        } else { $skipped++ }
+    }
+    foreach ($k in @($Data.Tweaks)) {
+        $parts = ([string]$k) -split '\|', 2
+        if ($parts.Count -eq 2) {
+            $found = @($Script:Tweaks | Where-Object { [string]$_.Cat -eq $parts[0] -and [string]$_.Name -eq $parts[1] })
+            if ($found.Count -gt 0) { $Script:TweakSel[[string]$k] = $true; $applied++ }
+            else { $skipped++ }
+        } else { $skipped++ }
+    }
+    Update-HomeUI
+    return @{ Applied = $applied; Skipped = $skipped }
+}
+
+function Apply-ProfileFromFile {
+    param([string]$Path)
+    try {
+        $j = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+        $r = Apply-ProfileData $j
+        $nm = [string]$j.Name
+        if (-not $nm) { $nm = [System.IO.Path]::GetFileNameWithoutExtension($Path) }
+        $Script:ProfHint.Text = ('Perfil aplicado: {0} ({1} items, {2} no disponibles en los catalogos actuales)' -f $nm, $r.Applied, $r.Skipped)
+        $Script:ProfHint.ForeColor = (icezCol 'Ok')
+        Switch-Page 'home'
+    } catch {
+        $Script:ProfHint.Text = ('Archivo de perfil invalido: ' + $_.Exception.Message)
+        $Script:ProfHint.ForeColor = (icezCol 'Err')
+    }
+}
+
+function Export-CurrentSelection {
+    $data = Get-CurrentSelectionProfile
+    $data.Name = 'Perfil exportado'
+    if ($Script:ProfNameBox -and $Script:ProfNameBox.Text.Trim()) { $data.Name = $Script:ProfNameBox.Text.Trim() }
+    $dlg = New-Object System.Windows.Forms.SaveFileDialog
+    $dlg.Filter = 'Perfil icezOP (*.icezprofile.json)|*.icezprofile.json|JSON (*.json)|*.json'
+    $dlg.FileName = 'icezprofile'
+    if ($dlg.ShowDialog($Script:Form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        if (Save-ProfileToFile $data $dlg.FileName) {
+            $Script:ProfHint.Text = ('Exportado a: ' + $dlg.FileName)
+            $Script:ProfHint.ForeColor = (icezCol 'Ok')
+        } else {
+            $Script:ProfHint.Text = 'No se pudo exportar el perfil.'
+            $Script:ProfHint.ForeColor = (icezCol 'Err')
+        }
+    }
+}
+
+function Import-ProfileDialog {
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Filter = 'Perfil icezOP (*.icezprofile.json)|*.icezprofile.json|JSON (*.json)|*.json'
+    if ($dlg.ShowDialog($Script:Form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        Apply-ProfileFromFile $dlg.FileName
+    }
+}
+
+function Export-ProfileFile {
+    param([string]$Path)
+    $dlg = New-Object System.Windows.Forms.SaveFileDialog
+    $dlg.Filter = 'Perfil icezOP (*.icezprofile.json)|*.icezprofile.json|JSON (*.json)|*.json'
+    $dlg.FileName = [System.IO.Path]::GetFileName($Path)
+    if ($dlg.ShowDialog($Script:Form) -eq [System.Windows.Forms.DialogResult]::OK) {
+        try {
+            Copy-Item -LiteralPath $Path -Destination $dlg.FileName -Force
+            $Script:ProfHint.Text = ('Exportado a: ' + $dlg.FileName)
+            $Script:ProfHint.ForeColor = (icezCol 'Ok')
+        } catch {
+            $Script:ProfHint.Text = 'No se pudo exportar.'
+            $Script:ProfHint.ForeColor = (icezCol 'Err')
+        }
+    }
+}
+
+function Remove-ProfileFile {
+    param([string]$Path)
+    try { Remove-Item -LiteralPath $Path -Force } catch {}
+    Refresh-ProfileList
+}
+
+function Refresh-ProfileList {
+    $panel = $Script:ProfListPanel
+    if ($null -eq $panel) { return }
+    $panel.Controls.Clear()
+    if (-not (Test-Path -LiteralPath $Script:ProfilesDir)) {
+        $panel.Controls.Add((New-Label 'Todavia no guardaste ningun perfil. Marca apps/tweaks y pulsa GUARDAR PERFIL.' 8 8 700 40 9 'Sub'))
+        return
+    }
+    $files = @(Get-ChildItem -LiteralPath $Script:ProfilesDir -Filter '*.icezprofile.json' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+    if ($files.Count -eq 0) {
+        $panel.Controls.Add((New-Label 'Todavia no guardaste ningun perfil.' 8 8 700 20 9 'Sub'))
+        return
+    }
+    $y = 0
+    foreach ($f in $files) {
+        $nm = $f.BaseName
+        $cr = $f.LastWriteTime.ToString('yyyy-MM-dd HH:mm')
+        $ac = 0; $tc = 0
+        try {
+            $meta = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($meta.Name) { $nm = [string]$meta.Name }
+            if ($meta.Created) { $cr = [string]$meta.Created }
+            $ac = @($meta.Apps).Count
+            $tc = @($meta.Tweaks).Count
+        } catch {}
+        $c = New-Card 8 $y 876 64
+        $c.Controls.Add((New-Label $nm 20 8 420 22 10.5 'Text' -Bold))
+        $c.Controls.Add((New-Label ('{0} apps · {1} tweaks · {2}' -f $ac, $tc, $cr) 20 34 460 18 8.5 'Sub'))
+
+        $btnA = New-Object IcezOP.GhostButton
+        $btnA.Location = Pt 610 16; $btnA.Size = Sz 74 32
+        $btnA.Text = 'APLICAR'
+        $btnA.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
+        $btnA.Tag = $f.FullName
+        $btnA.Add_Click({ param($s, $e); Apply-ProfileFromFile ([string]$s.Tag) })
+        $c.Controls.Add($btnA)
+
+        $btnE = New-Object IcezOP.GhostButton
+        $btnE.Location = Pt 692 16; $btnE.Size = Sz 88 32
+        $btnE.Text = 'EXPORTAR'
+        $btnE.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
+        $btnE.Tag = $f.FullName
+        $btnE.Add_Click({ param($s, $e); Export-ProfileFile ([string]$s.Tag) })
+        $c.Controls.Add($btnE)
+
+        $btnD = New-Object IcezOP.GhostButton
+        $btnD.Location = Pt 788 16; $btnD.Size = Sz 76 32
+        $btnD.Text = 'ELIMINAR'
+        $btnD.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
+        $btnD.ForeColor = (icezCol 'Err')
+        $btnD.Tag = $f.FullName
+        $btnD.Add_Click({ param($s, $e); Remove-ProfileFile ([string]$s.Tag) })
+        $c.Controls.Add($btnD)
+
+        $panel.Controls.Add($c)
+        $y += 72
+    }
+}
+
+ $pProf = New-Page 'profiles'
+ $pProf.AutoScroll = $true
+ $pProf.Controls.Add((New-Label 'Perfiles' 24 20 400 34 15 'Text' -Bold))
+ $pProf.Controls.Add((New-Label 'Guarda tu seleccion de apps y tweaks, reusala cuando quieras o compartila exportandola a un archivo.' 24 52 860 22 9.5 'Sub'))
+
+ $cardSave = New-Card 24 82 892 118
+ $cardSave.Controls.Add((New-Label 'Guardar seleccion actual' 20 12 400 22 10.5 'Text' -Bold))
+
+ $Script:ProfNameBox = New-Object System.Windows.Forms.TextBox
+ $Script:ProfNameBox.Location = Pt 20 44
+ $Script:ProfNameBox.Size = Sz 360 26
+ $Script:ProfNameBox.BorderStyle = 'None'
+ $Script:ProfNameBox.BackColor = (icezCol 'LogBg')
+ $Script:ProfNameBox.ForeColor = (icezCol 'Text')
+ $Script:ProfNameBox.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+ $cardSave.Controls.Add($Script:ProfNameBox)
+ $pln = New-Object System.Windows.Forms.Panel
+ $pln.Location = Pt 20 72
+ $pln.Size = Sz 360 1
+ $pln.BackColor = (icezCol 'Border')
+ $cardSave.Controls.Add($pln)
+
+ $btnSaveProf = New-Object IcezOP.GradientButton
+ $btnSaveProf.Location = Pt 400 40
+ $btnSaveProf.Size = Sz 180 34
+ $btnSaveProf.Text = 'GUARDAR PERFIL'
+ $btnSaveProf.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
+ $btnSaveProf.Add_Click({ Save-CurrentProfile })
+ $cardSave.Controls.Add($btnSaveProf)
+
+ $btnExportSel = New-Object IcezOP.GhostButton
+ $btnExportSel.Location = Pt 596 40
+ $btnExportSel.Size = Sz 196 34
+ $btnExportSel.Text = 'EXPORTAR ACTUAL'
+ $btnExportSel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8.5)
+ $btnExportSel.Add_Click({ Export-CurrentSelection })
+ $cardSave.Controls.Add($btnExportSel)
+
+ $btnImport = New-Object IcezOP.GhostButton
+ $btnImport.Location = Pt 804 40
+ $btnImport.Size = Sz 76 34
+ $btnImport.Text = 'IMPORTAR'
+ $btnImport.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8.5)
+ $btnImport.Add_Click({ Import-ProfileDialog })
+ $cardSave.Controls.Add($btnImport)
+
+ $Script:ProfHint = New-Label '' 20 88 840 20 8.5 'Sub'
+ $cardSave.Controls.Add($Script:ProfHint)
+ $pProf.Controls.Add($cardSave)
+
+ $pProf.Controls.Add((New-Label 'Perfiles guardados' 24 214 400 24 11 'Text' -Bold))
+ $Script:ProfListPanel = New-Object System.Windows.Forms.Panel
+ $Script:ProfListPanel.Location = Pt 24 242
+ $Script:ProfListPanel.Size = Sz 892 380
+ $Script:ProfListPanel.BackColor = (icezCol 'Bg')
+ $Script:ProfListPanel.AutoScroll = $true
+ $pProf.Controls.Add($Script:ProfListPanel)
+
+Refresh-ProfileList
 
 # ═══════════ PAGINA: AJUSTES ═══════════
  $pSet = New-Page 'settings'
@@ -1597,12 +2138,15 @@ function Show-CategoryModal {
         if ($Type -eq 'app') { $key = [string]$it.ID; $hash = $Script:AppSel }
         else { $key = ($it.Cat + '|' + $it.Name); $hash = $Script:TweakSel }
         if ($hash.ContainsKey($key)) { $cb.Checked = [bool]$hash[$key] }
-        $k = $key
+        $cb.Tag = ([string]$Type + '|' + $key)
         $cb.Add_CheckedChanged({
             param($s, $e)
-            $hash[$k] = $s.Checked
+            $parts = ([string]$s.Tag) -split '\|', 2
+            if ($parts.Count -lt 2) { return }
+            if ($parts[0] -eq 'app') { $Script:AppSel[$parts[1]] = $s.Checked }
+            else { $Script:TweakSel[$parts[1]] = $s.Checked }
             Update-ModalCounter
-        }.GetNewClosure())
+        })
         [void]$Script:ModalBoxes.Add($cb)
         $list.Controls.Add($cb)
         $y += 38
