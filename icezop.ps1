@@ -1,17 +1,53 @@
 #requires -Version 5.1
 <#
     ═══════════════════════════════════════════════════════════════
-     icezOP v0.1.0 — Post-instalación y optimización para Windows 11
+     icezOP v0.1.1 — Post-instalación y optimización para Windows 11
     ═══════════════════════════════════════════════════════════════
      Motor:    PowerShell 5.1 + WinForms (C# inyectado)
      Apps:     Winget        |  Tweaks: Registro/Servicios/PowerCFG
-     Archivos: apps.json y tweaks.json junto a este script
-     Ejecutar: clic derecho → Ejecutar con PowerShell
-              (o: powershell -ExecutionPolicy Bypass -File .\icezOP.ps1)
+     Archivos: apps.json y tweaks.json (local o desde el repo)
+     Ejecutar: powershell -ExecutionPolicy Bypass -File .\icezOP.ps1
+              o:  iex (irm 'https://raw.githubusercontent.com/icezggg/icezOP/main/icezop.ps1')
     ═══════════════════════════════════════════════════════════════
 #>
 
-# ══════════════════ 0. ARRANQUE Y PERMISOS ══════════════════
+# ══════════════════ 0. ARRANQUE, PERMISOS Y MODO ══════════════════
+ $Script:Version  = '0.1.1'
+ $Script:RepoBase = 'https://raw.githubusercontent.com/icezggg/icezOP/main'   # ← cambiar si movés el repo
+ $Script:SelfPath = $PSCommandPath
+
+ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+ $isSta   = ([System.Threading.Thread]::CurrentThread.GetApartmentState() -eq [System.Threading.ApartmentState]::STA)
+
+# Elevar a administrador (auto-relanzamiento con UAC)
+if (-not $isAdmin) {
+    try {
+        if ($Script:SelfPath) {
+            Start-Process 'powershell.exe' -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-STA','-File',('"{0}"' -f $Script:SelfPath))
+        } else {
+            # Modo iex: relanzamos con el mismo one-liner
+            $cmd = "iex (irm '$Script:RepoBase/icezop.ps1')"
+            Start-Process 'powershell.exe' -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-STA','-Command',$cmd)
+        }
+    } catch {
+        try {
+            Add-Type -AssemblyName System.Windows.Forms
+            [void][System.Windows.Forms.MessageBox]::Show('icezOP necesita permisos de administrador para funcionar.', 'icezOP', 'OK', 'Warning')
+        } catch {}
+    }
+    return
+}
+# WinForms necesita STA
+if (-not $isSta) {
+    if ($Script:SelfPath) {
+        Start-Process 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-STA','-File',('"{0}"' -f $Script:SelfPath))
+    } else {
+        $cmd = "iex (irm '$Script:RepoBase/icezop.ps1')"
+        Start-Process 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-STA','-Command',$cmd)
+    }
+    return
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -20,43 +56,43 @@ if (-not ('Icez.Win32' -as [type])) {
 }
 [Icez.Win32]::SetProcessDPIAware() | Out-Null
 
- $Script:SelfPath = $PSCommandPath
-
-# Elevar a administrador (auto-relanzamiento con UAC)
- $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    try { Start-Process 'powershell.exe' -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-STA','-File',('"{0}"' -f $SelfPath)) } catch {}
-    exit
-}
-# WinForms necesita STA
-if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
-    Start-Process 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-STA','-File',('"{0}"' -f $SelfPath))
-    exit
-}
-
 # ══════════════════ 1. CARGA DE CATÁLOGOS (JSON) ══════════════════
- $Script:Root = Split-Path -Parent $SelfPath
+if ($Script:SelfPath) { $Script:Root = Split-Path -Parent $Script:SelfPath }
+else { $Script:Root = $PWD.Path }
+
+function ConvertTo-IcezArray {
+    param($Data)
+    if ($null -eq $Data) { return @() }
+    if ($Data -is [System.Management.Automation.PSCustomObject]) {
+        $prop = @($Data.PSObject.Properties | Where-Object { $_.Value -is [System.Array] }) | Select-Object -First 1
+        if ($prop) { return @($prop.Value) }
+        return @()
+    }
+    return @($Data)
+}
 
 function Import-IcezJson {
-    param([string]$Path)
-    if (-not (Test-Path $Path)) { return @() }
+    param([string]$Name)
+    # 1) Archivo local (junto al script)
+    $local = Join-Path $Script:Root $Name
+    if (Test-Path -LiteralPath $local) {
+        try {
+            return ConvertTo-IcezArray (Get-Content -LiteralPath $local -Raw -Encoding UTF8 | ConvertFrom-Json)
+        } catch {}
+    }
+    # 2) Remoto (modo iex): descargar del repositorio
     try {
-        $data = Get-Content -Path $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-        # Tolerante: si viene envuelto {"archivo": [...]}, desenvolver
-        if ($data -is [System.Management.Automation.PSCustomObject]) {
-            $arrProp = @($data.PSObject.Properties | Where-Object { $_.Value -is [System.Array] }) | Select-Object -First 1
-            if ($arrProp) { return @($arrProp.Value) }
-            return @()
-        }
-        return @($data)
-    } catch { return @() }
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        return ConvertTo-IcezArray (Invoke-RestMethod -Uri ($Script:RepoBase + '/' + $Name) -UseBasicParsing)
+    } catch {}
+    return @()
 }
 
- $Script:Apps   = @(Import-IcezJson (Join-Path $Root 'apps.json')   | Where-Object { $_.Name -and $_.ID -and $_.Cat })
- $Script:Tweaks = @(Import-IcezJson (Join-Path $Root 'tweaks.json') | Where-Object { $_.Name -and $_.Script -and $_.Cat })
+ $Script:Apps   = @(Import-IcezJson 'apps.json'   | Where-Object { $_.Name -and $_.ID -and $_.Cat })
+ $Script:Tweaks = @(Import-IcezJson 'tweaks.json' | Where-Object { $_.Name -and $_.Script -and $_.Cat })
 
 if ($Script:Apps.Count -eq 0 -and $Script:Tweaks.Count -eq 0) {
-    [void][System.Windows.Forms.MessageBox]::Show('No se encontraron apps.json / tweaks.json (o están vacíos). Colócalos en la misma carpeta que icezOP.ps1.', 'icezOP', 'OK', 'Warning')
+    [void][System.Windows.Forms.MessageBox]::Show("No se pudieron cargar apps.json ni tweaks.json.`r`n`r`nSe buscó en: $Script:Root`r`ny en el repositorio: $Script:RepoBase`r`n`r`nLa interfaz se abrirá igual, pero sin catálogos.", 'icezOP', 'OK', 'Warning')
 }
 
 # Categorías en orden de aparición
@@ -149,8 +185,6 @@ namespace IcezOP
         }
     }
 
-    // ── Panel/tarjeta redondeada (pinta en OnPaintBackground para que
-    //    los hijos transparentes se mezclen correctamente) ─────────────
     public class CardPanel : Panel
     {
         private int radius; private Color fill; private Color border;
@@ -174,7 +208,6 @@ namespace IcezOP
         }
     }
 
-    // ── Checkbox con relleno degradado y esquinas redondeadas ─────────
     public class IcezCheckBox : Control
     {
         private bool isChecked; private bool isHover; private bool star;
@@ -248,7 +281,6 @@ namespace IcezOP
         }
     }
 
-    // ── Botón primario con degradado violeta y sombra ─────────────────
     public class GradientButton : Control
     {
         private bool isHover; private bool isDown;
@@ -318,7 +350,6 @@ namespace IcezOP
         }
     }
 
-    // ── Botón secundario (borde) ──────────────────────────────────────
     public class GhostButton : Control
     {
         private bool isHover;
@@ -353,7 +384,6 @@ namespace IcezOP
         }
     }
 
-    // ── Botón de glifo (hamburguesa, cerrar, minimizar) ──────────────
     public class GlyphButton : Control
     {
         private bool isHover; private string glyph; private string gfont; private bool danger;
@@ -391,7 +421,6 @@ namespace IcezOP
         }
     }
 
-    // ── Ítem del menú lateral ─────────────────────────────────────────
     public class NavItem : Control
     {
         private bool act; private bool hov; private bool showTxt; private string glyph; private string gfont;
@@ -443,7 +472,6 @@ namespace IcezOP
         }
     }
 
-    // ── Tile de categoría (Inicio / Apps / Tweaks) ───────────────────
     public class CategoryTile : Control
     {
         private bool hov; private string title; private string sub; private string mono; private bool subAcc;
@@ -491,7 +519,6 @@ namespace IcezOP
         }
     }
 
-    // ── Barra de progreso ─────────────────────────────────────────────
     public class IcezProgressBar : Control
     {
         private double pct;
@@ -526,7 +553,6 @@ namespace IcezOP
         }
     }
 
-    // ── Slider ────────────────────────────────────────────────────────
     public class IcezSlider : Control
     {
         private int val; private int min; private int max; private bool drag;
@@ -730,8 +756,12 @@ for ($i = 0; $i -lt $total; $i++) {
 
             'tweak' {
                 $err = $null
-                try { $null = Invoke-Expression -Command $t.Script -ErrorAction Stop }
-                catch { $err = $_ }
+                $eapPrev = $ErrorActionPreference
+                try {
+                    $ErrorActionPreference = 'Stop'
+                    $null = Invoke-Expression -Command $t.Script
+                } catch { $err = $_ }
+                finally { $ErrorActionPreference = $eapPrev }
                 if ($err) { Log ('  X   ' + $err.Exception.Message) }
                 else { Log '  OK  Aplicado'; $ok = $true }
             }
@@ -757,6 +787,7 @@ for ($i = 0; $i -lt $total; $i++) {
                     $ri = $ins.Install()
                     if ($ri.ResultCode -eq 2 -or $ri.ResultCode -eq 3) {
                         Log ('  OK  ' + $coll.Count + ' controlador(es) actualizado(s)')
+                        if ($ri.RebootRequired) { Log '  !  Se requiere reinicio para completar' }
                         $ok = $true
                     } else { Log ('  X   La instalacion fallo (codigo ' + $ri.ResultCode + ')') }
                 } catch { Log ('  X   ' + $_.Exception.Message) }
@@ -813,8 +844,8 @@ try {
  $Script:Form.MaximizeBox = $false
  $Script:Form.Size = Sz 1160 720
  $Script:Form.BackColor = $C.Bg
- $Script:Form.Font = New-Object System.Drawing.Font('Segoe UI', 9.75F)
- $rgp = [IcezOP.Gfx]::Round (RectF 0 0 1160 720) 16
+ $Script:Form.Font = New-Object System.Drawing.Font('Segoe UI', 9.75)
+ $rgp = [IcezOP.Gfx]::Round((RectF 0 0 1160 720), 16)
  $Script:Form.Region = New-Object System.Drawing.Region($rgp)
 
 # Ícono generado en runtime
@@ -822,7 +853,7 @@ try {
     $icoBmp = New-Object System.Drawing.Bitmap 32, 32
     $ig = [System.Drawing.Graphics]::FromImage($icoBmp)
     $ig.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $ip = [IcezOP.Gfx]::Round (RectF 0 0 32 32) 9
+    $ip = [IcezOP.Gfx]::Round((RectF 0 0 32 32), 9)
     $ib = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Rectangle(0, 0, 32, 32)), $C.AccL, $C.AccD, 'Vertical')
     $ig.FillPath($ib, $ip)
     $if = New-Object System.Drawing.Font('Segoe Script', 16, ([System.Drawing.FontStyle]::Bold -bor [System.Drawing.FontStyle]::Italic))
@@ -896,7 +927,7 @@ Enable-Drag $header; Enable-Drag $logo1; Enable-Drag $logo2
  $bottom.Controls.Add($bline)
  $Script:StatusLbl = New-Label 'En cola: 0 apps · 0 tweaks' 24 18 640 22 9.5 $C.Sub
  $bottom.Controls.Add($Script:StatusLbl)
- $verLbl = New-Label 'icezOP v0.1.0' 24 40 300 16 8 ([System.Drawing.Color]::FromArgb(90, 90, 104))
+ $verLbl = New-Label ('icezOP v' + $Script:Version) 24 40 300 16 8 ([System.Drawing.Color]::FromArgb(90, 90, 104))
  $bottom.Controls.Add($verLbl)
  $Script:ExecBtn = New-Object IcezOP.GradientButton
  $Script:ExecBtn.Location = Pt 946 11
@@ -1194,9 +1225,10 @@ function Build-DriverCards {
  $cbFinish.Location = Pt 20 190; $cbFinish.Size = Sz 300 28
  $cbFinish.DropDownStyle = 'DropDownList'
  $cbFinish.FlatStyle = 'Flat'
- $cbFinish.BackColor = $C.Card; $cbFinish.ForeColor = $C.Text
- $cbFinish.Font = New-Object System.Drawing.Font('Segoe UI', 9.5F)
+ $cbFinish.DrawMode = 'OwnerDrawFixed'
  $cbFinish.ItemHeight = 20
+ $cbFinish.BackColor = $C.Card; $cbFinish.ForeColor = $C.Text
+ $cbFinish.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
 [void]$cbFinish.Items.Add('No hacer nada')
 [void]$cbFinish.Items.Add('Cerrar icezOP')
 [void]$cbFinish.Items.Add('Reiniciar el equipo')
@@ -1206,9 +1238,11 @@ function Build-DriverCards {
     if ($e.Index -lt 0) { return }
     $sel = (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0)
     $bgc = if ($sel) { $C.Acc } else { $C.Card }
-    $e.Graphics.FillRectangle((New-Object System.Drawing.SolidBrush($bgc)), $e.Bounds)
+    $brush = New-Object System.Drawing.SolidBrush($bgc)
+    $e.Graphics.FillRectangle($brush, $e.Bounds)
+    $brush.Dispose()
     $r = New-Object System.Drawing.Rectangle(($e.Bounds.X + 10), $e.Bounds.Y, ($e.Bounds.Width - 10), $e.Bounds.Height)
-    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, [string]$s.Items[$e.Index], $s.Font, $r, $C.Text, [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left)
+    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, [string]$s.Items[$e.Index], $s.Font, $r, $C.Text, ([System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left))
 })
  $cbFinish.Add_SelectedIndexChanged({
     switch ($this.SelectedIndex) {
@@ -1233,14 +1267,14 @@ function Build-DriverCards {
 
  $cardAbout = New-Card 24 418 892 140
  $cardAbout.Controls.Add((New-Label 'Acerca de' 20 16 300 24 11 $C.Text -Bold))
- $cardAbout.Controls.Add((New-Label 'icezOP v0.1.0 — Post-instalación y optimización para Windows 11' 20 46 700 20 9 $C.Sub))
+ $cardAbout.Controls.Add((New-Label ('icezOP v' + $Script:Version + ' — Post-instalación y optimización para Windows 11') 20 46 700 20 9 $C.Sub))
  $linkGh = New-Object System.Windows.Forms.LinkLabel
  $linkGh.Location = Pt 20 68; $linkGh.Size = Sz 400 20
- $linkGh.Text = 'github.com/tuusuario/icezOP'
+ $linkGh.Text = 'github.com/icezggg/icezOP'
  $linkGh.LinkColor = $C.AccL
  $linkGh.ActiveLinkColor = $C.AccL
- $linkGh.Font = New-Object System.Drawing.Font('Segoe UI', 9F)
- $linkGh.Add_Click({ Start-Process 'https://github.com/tuusuario/icezOP' })
+ $linkGh.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+ $linkGh.Add_Click({ Start-Process 'https://github.com/icezggg/icezOP' })
  $cardAbout.Controls.Add($linkGh)
  $cardAbout.Controls.Add((New-Label 'Motor: PowerShell 5.1 + WinForms (C# inyectado) · Instalador: Winget · Este software se ofrece tal cual, sin garantías. Úsalo bajo tu propio riesgo.' 20 96 840 34 8.25 ([System.Drawing.Color]::FromArgb(110, 110, 124))))
  $pSet.Controls.Add($cardAbout)
@@ -1279,7 +1313,7 @@ function Show-CategoryModal {
     $modal.Size = Sz $mw $mh
     $modal.Location = Pt ([int]($Script:Form.Left + ($Script:Form.Width - $mw) / 2)) ([int]($Script:Form.Top + ($Script:Form.Height - $mh) / 2))
     $modal.BackColor = $C.Bg
-    $mrg = [IcezOP.Gfx]::Round (RectF 0 0 $mw $mh) 18
+    $mrg = [IcezOP.Gfx]::Round((RectF 0 0 $mw $mh), 18)
     $modal.Region = New-Object System.Drawing.Region($mrg)
 
     $modal.Controls.Add((New-Label $Category 28 14 440 30 13 $C.Text -Bold))
@@ -1378,7 +1412,7 @@ function Start-Run {
     $modal.Size = Sz $mw $mh
     $modal.Location = Pt ([int]($Script:Form.Left + ($Script:Form.Width - $mw) / 2)) ([int]($Script:Form.Top + ($Script:Form.Height - $mh) / 2))
     $modal.BackColor = $C.Bg
-    $mrg = [IcezOP.Gfx]::Round (RectF 0 0 $mw $mh) 18
+    $mrg = [IcezOP.Gfx]::Round((RectF 0 0 $mw $mh), 18)
     $modal.Region = New-Object System.Drawing.Region($mrg)
 
     $modal.Controls.Add((New-Label $Title 28 20 500 30 13.5 $C.Text -Bold))
@@ -1395,7 +1429,7 @@ function Start-Run {
     $Script:RunLogBox.BorderStyle = 'None'
     $Script:RunLogBox.BackColor = [System.Drawing.Color]::FromArgb(11, 11, 16)
     $Script:RunLogBox.ForeColor = [System.Drawing.Color]::FromArgb(169, 169, 188)
-    $Script:RunLogBox.Font = New-Object System.Drawing.Font('Consolas', 9F)
+    $Script:RunLogBox.Font = New-Object System.Drawing.Font('Consolas', 9)
     $Script:RunLogBox.IntegralHeight = $false
     $Script:RunLogBox.HorizontalScrollbar = $true
     $modal.Controls.Add($Script:RunLogBox)
@@ -1519,7 +1553,7 @@ function Start-Run {
             $Script:RunProg.Visible = $false
             $Script:RunCancel.Visible = $false
             $txt = ('√  {0} tareas completadas' -f $sync.OkCount)
-            if ($sync.FailCount -gt 0) { $txt += ("   ·   ×  {0} con errores" -f $sync.FailCount) }
+            if ($sync.FailCount -gt 0) { $txt += ('   ·   ×  {0} con errores' -f $sync.FailCount) }
             $txt += "`r`nReinicia el equipo para aplicar todos los cambios del sistema."
             $Script:RunSummary.Text = $txt
             $Script:RunSummary.Visible = $true
