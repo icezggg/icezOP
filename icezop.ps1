@@ -9,7 +9,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # --- INYECCIÓN DE CONTROLES C# PREMIUM ---
-if (-not ([System.Management.Automation.PSTypeName]'CategoryCard').Type) {
+if (-not ([System.Management.Automation.PSTypeName]'GradientButton').Type) {
     $CSharpCode = @"
 using System;
 using System.Drawing;
