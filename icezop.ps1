@@ -100,6 +100,7 @@ function Import-IcezJson {
 
 function Load-Config {
     $cfg = @{
+        Language       = 'es'
         Theme         = 'Dark Mode (Por defecto)'
         RestorePoint  = $true
         UpdateSources = $true
@@ -148,6 +149,39 @@ foreach ($a in $Script:Apps) {
  $Script:TweakCats = New-Object System.Collections.ArrayList
 foreach ($t in $Script:Tweaks) {
     if (-not $Script:TweakCats.Contains([string]$t.Cat)) { [void]$Script:TweakCats.Add([string]$t.Cat) }
+}
+# ════════════════════ 1b. IDIOMAS ════════════════════
+# lang.json: pares "texto español" -> "traduccion". La clave es el texto
+# literal del programa; si no existe, t() devuelve el original (nada se rompe).
+ $Script:LangNativos = @{ es = 'Español'; en = 'English'; pt = 'Português'; de = 'Deutsch'; fr = 'Français'; ja = '日本語'; zh = '中文' }
+ $Script:LangCode = [string]$Script:Settings.Language
+if (-not $Script:LangCode -or -not $Script:LangNativos.ContainsKey($Script:LangCode)) { $Script:LangCode = 'es' }
+if ($Script:LangCode -eq 'es') { $Script:LangCode = 'es' }
+
+ $Script:LangMap = $null
+try {
+    $langRaw = $null
+    $localLang = Join-Path $Script:Root 'lang.json'
+    if (Test-Path -LiteralPath $localLang) {
+        $langRaw = Get-Content -LiteralPath $localLang -Raw -Encoding UTF8 | ConvertFrom-Json
+    } else {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $langRaw = Invoke-RestMethod -Uri ($Script:RepoBase + '/lang.json') -UseBasicParsing
+    }
+    $Script:LangMap = @{}
+    foreach ($p in $langRaw.PSObject.Properties) {
+        $h = @{}
+        foreach ($q in $p.Value.PSObject.Properties) { $h[$q.Name] = [string]$q.Value }
+        $Script:LangMap[[string]$p.Name] = $h
+    }
+} catch { $Script:LangMap = $null }
+
+function t([string]$Text) {
+    if ($Script:LangMap -and $Script:LangCode -ne 'es') {
+        $lang = $Script:LangMap[$Script:LangCode]
+        if ($lang -and $lang.ContainsKey($Text)) { return [string]$lang[$Text] }
+    }
+    return $Text
 }
 
 # ════════════════════ 2. TEMAS ════════════════════
@@ -1040,7 +1074,7 @@ function New-Label {
         [string]$Family = 'Segoe UI'
     )
     $l = New-Object System.Windows.Forms.Label
-    $l.Text = $Text
+    $l.Text = (t $Text)
     $l.Location = Pt $X $Y
     $l.Size = Sz $W $H
     $l.Font = New-Object System.Drawing.Font($Family, $Size, $(if ($Bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }))
@@ -1107,7 +1141,7 @@ function Update-ModalCounter {
     if ($Script:ModalCounterLbl -and $Script:ModalBoxes) {
         $n = 0
         foreach ($b in $Script:ModalBoxes) { if ($b.Checked) { $n++ } }
-        $Script:ModalCounterLbl.Text = ('{0} de {1} seleccionados' -f $n, $Script:ModalTotal)
+                $Script:ModalCounterLbl.Text = ((t '{0} de {1} seleccionados') -f $n, $Script:ModalTotal)
     }
 }
 
@@ -1130,19 +1164,19 @@ function Update-HomeUI {
     $Script:HomeStatT.Text = [string]$t
     $Script:HomeStatQ.Text = [string]($a + $t)
     $Script:ExecBtn.Enabled = (($a + $t) -gt 0)
-    $Script:StatusLbl.Text  = ('En cola: {0} apps - {1} tweaks' -f $a, $t)
+        $Script:StatusLbl.Text  = ((t 'En cola: {0} apps - {1} tweaks') -f $a, $t)
     foreach ($cat in $Script:AppTiles.Keys) {
         $tot = @($Script:Apps | Where-Object { $_.Cat -eq $cat }).Count
         $sel = @($Script:Apps | Where-Object { $_.Cat -eq $cat -and [bool]$Script:AppSel[$_.ID] }).Count
         $tile = $Script:AppTiles[$cat]
-        $tile.Subtitle = ('{0} apps - {1} marcadas' -f $tot, $sel)
+                $tile.Subtitle = ((t '{0} apps - {1} marcadas') -f $tot, $sel)
         $tile.SubAccent = ($sel -gt 0)
     }
     foreach ($cat in $Script:TweakTiles.Keys) {
         $tot = @($Script:Tweaks | Where-Object { $_.Cat -eq $cat }).Count
         $sel = @($Script:Tweaks | Where-Object { $_.Cat -eq $cat -and [bool]$Script:TweakSel[($_.Cat + '|' + $_.Name)] }).Count
         $tile = $Script:TweakTiles[$cat]
-        $tile.Subtitle = ('{0} tweaks - {1} marcados' -f $tot, $sel)
+                $tile.Subtitle = ((t '{0} tweaks - {1} marcados') -f $tot, $sel)
         $tile.SubAccent = ($sel -gt 0)
     }
 }
@@ -1152,6 +1186,7 @@ function Update-HomeUI {
 param($sync, $cfg)
 function Log([string]$m) { $sync.Log.Enqueue($m) }
 
+ $txt = $sync.Texts
  $tasks = @($sync.Tasks)
  $total = $tasks.Count
  $sync.OkCount = 0
@@ -1159,7 +1194,7 @@ function Log([string]$m) { $sync.Log.Enqueue($m) }
  $sync.Percent = 0
 
 for ($i = 0; $i -lt $total; $i++) {
-    if ($sync.Cancel) { Log '  !  Cancelado por el usuario.'; break }
+    if ($sync.Cancel) { Log $txt.Cancel; break }
     $t = $tasks[$i]
     $sync.Percent = [math]::Round(($i / $total) * 100, 1)
     $sync.Status = ('[{0}/{1}]  {2}' -f ($i + 1), $total, $t.Label)
@@ -1173,14 +1208,14 @@ for ($i = 0; $i -lt $total; $i++) {
                     Enable-ComputerRestore -Drive ($env:SystemDrive + '\') -ErrorAction SilentlyContinue
                     New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore' -Name 'SystemRestorePointCreationFrequency' -Value 0 -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null
                     Checkpoint-Computer -Description 'icezOP - Pre-optimizacion' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop | Out-Null
-                    Log '  OK  Punto de restauracion creado'
+                    Log $txt.RestoreOk
                     $ok = $true
-                } catch { Log ('  !  No se pudo crear el punto: ' + $_.Exception.Message) }
+                } catch { Log ($txt.RestoreFail -f $_.Exception.Message) }
             }
 
             'sources' {
                 & $sync.Winget source update --disable-interactivity 2>&1 | Out-Null
-                Log '  OK  Origenes de Winget actualizados'
+                Log $txt.SourcesOk
                 $ok = $true
             }
 
@@ -1198,23 +1233,23 @@ for ($i = 0; $i -lt $total; $i++) {
                         $alt = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'
                         if (Test-Path $alt) { $sync.Winget = $alt }
                     }
-                    if ($sync.Winget) { Log '  OK  Winget instalado'; $ok = $true }
+                    if ($sync.Winget) { Log $txt.WingetOk; $ok = $true }
                     else { Log '  X   Winget instalado pero no en PATH. Reinicia.' }
                 } catch { Log ('  X   ' + $_.Exception.Message) }
             }
 
             'app' {
-                if (-not $sync.Winget) { Log '  X   Winget no disponible'; break }
+                if (-not $sync.Winget) { Log $txt.NoWinget; break }
                 $wg = $sync.Winget
                 $maxTry = 1 + [int]$cfg.Retries
                 for ($try = 1; $try -le $maxTry; $try++) {
-                    if ($try -gt 1) { Log ('  ..  Reintento ' + $try); Start-Sleep -Seconds 2 }
+                    if ($try -gt 1) { Log ($txt.Retry -f $try); Start-Sleep -Seconds 2 }
                     & $wg install --id $t.Id --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
                     $code = $LASTEXITCODE
-                    if ($code -eq 0) { Log '  OK  Instalado correctamente'; $ok = $true; break }
+                    if ($code -eq 0) { Log $txt.Installed; $ok = $true; break }
                     & $wg list --id $t.Id --exact --disable-interactivity 2>&1 | Out-Null
-                    if ($LASTEXITCODE -eq 0) { Log '  OK  Ya estaba instalado'; $ok = $true; break }
-                    if ($try -eq $maxTry) { Log ('  X   Fallo (codigo ' + $code + ')') }
+                    if ($LASTEXITCODE -eq 0) { Log $txt.Already; $ok = $true; break }
+                    if ($try -eq $maxTry) { Log ($txt.FailCode -f $code) }
                 }
             }
 
@@ -1227,7 +1262,7 @@ for ($i = 0; $i -lt $total; $i++) {
                 } catch { $err = $_ }
                 finally { $ErrorActionPreference = $eapPrev }
                 if ($err) { Log ('  X   ' + $err.Exception.Message) }
-                else { Log '  OK  Aplicado'; $ok = $true }
+                else { Log $txt.Applied; $ok = $true }
             }
 
             'driver' {
@@ -1461,7 +1496,7 @@ Enable-Drag $logo2
  $Script:ExecBtn = New-Object IcezOP.GradientButton
  $Script:ExecBtn.Location = Pt 946 11
  $Script:ExecBtn.Size = Sz 190 42
- $Script:ExecBtn.Text = 'EJECUTAR'
+$Script:ExecBtn.Text = (t 'EJECUTAR')
  $Script:ExecBtn.Glyph = (icezG 'Play')
  $Script:ExecBtn.GlyphFont = $Script:GlyphFont
  $Script:ExecBtn.Enabled = $false
@@ -1478,7 +1513,7 @@ function New-NavItem([string]$Glyph, [string]$Text, [string]$Tag, [int]$Y) {
     $n = New-Object IcezOP.NavItem
     $n.Glyph = $Glyph
     $n.GlyphFont = $Script:GlyphFont
-    $n.Text = $Text
+    $n.Text = (t $Text)
     $n.Tag = $Tag
     $n.Location = Pt 10 $Y
     $n.Size = Sz 200 42
@@ -1530,7 +1565,7 @@ function Switch-Page {
  $btnRec = New-Object IcezOP.GradientButton
  $btnRec.Location = Pt 24 80
  $btnRec.Size = Sz 230 36
- $btnRec.Text = 'MARCAR RECOMENDADOS'
+ $btnRec.Text = (t 'MARCAR RECOMENDADOS')
  $btnRec.Add_Click({
     foreach ($a in $Script:Apps) { if ($a.Rec) { $Script:AppSel[[string]$a.ID] = $true } }
     Update-HomeUI
@@ -1540,7 +1575,7 @@ function Switch-Page {
  $btnClear = New-Object IcezOP.GhostButton
  $btnClear.Location = Pt 268 80
  $btnClear.Size = Sz 180 36
- $btnClear.Text = 'LIMPIAR SELECCION'
+ $btnClear.Text = (t 'LIMPIAR SELECCION')
  $btnClear.Add_Click({ $Script:AppSel = @{}; $Script:TweakSel = @{}; Update-HomeUI })
  $hero.Controls.Add($btnClear)
  $pHome.Controls.Add($hero)
@@ -1586,7 +1621,7 @@ foreach ($cat in $Script:AppCats) {
     $tile = New-Object IcezOP.CategoryTile
     $tile.Size = Sz 284 86
     $tile.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 10)
-    $tile.Title = [string]$cat
+    $tile.Title = (t ([string]$cat))
     $tile.Monogram = ([string]$cat).Substring(0, 1)
         if ($tile.GetType().GetProperty('IconKind')) { $tile.IconKind = Get-CatIconKind ([string]$cat) }
     $tile.Tag = [string]$cat
@@ -1613,7 +1648,7 @@ foreach ($cat in $Script:TweakCats) {
     $tile = New-Object IcezOP.CategoryTile
     $tile.Size = Sz 284 86
     $tile.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 10)
-    $tile.Title = [string]$cat
+        $tile.Title = (t ([string]$cat))
     $tile.Monogram = ([string]$cat).Substring(0, 1)
         if ($tile.GetType().GetProperty('IconKind')) { $tile.IconKind = Get-CatIconKind ([string]$cat) }
     $tile.Tag = [string]$cat
@@ -1704,7 +1739,7 @@ function Save-CurrentProfile {
     $i = 1
     while (Test-Path -LiteralPath $path) { $path = Join-Path $Script:ProfilesDir ($slug + '_' + $i + '.icezprofile.json'); $i++ }
     if (Save-ProfileToFile $data $path) {
-        $Script:ProfHint.Text = ('Perfil guardado: {0} ({1} apps, {2} tweaks)' -f $name, @($data.Apps).Count, @($data.Tweaks).Count)
+                $Script:ProfHint.Text = ((t 'Perfil guardado: {0} ({1} apps, {2} tweaks)') -f $name, @($data.Apps).Count, @($data.Tweaks).Count)
         $Script:ProfHint.ForeColor = (icezCol 'Ok')
         if ($Script:ProfNameBox) { $Script:ProfNameBox.Text = '' }
         Refresh-ProfileList
@@ -1743,7 +1778,7 @@ function Apply-ProfileFromFile {
         $r = Apply-ProfileData $j
         $nm = [string]$j.Name
         if (-not $nm) { $nm = [System.IO.Path]::GetFileNameWithoutExtension($Path) }
-        $Script:ProfHint.Text = ('Perfil aplicado: {0} ({1} items, {2} no disponibles en los catalogos actuales)' -f $nm, $r.Applied, $r.Skipped)
+                $Script:ProfHint.Text = ((t 'Perfil aplicado: {0} ({1} items, {2} no disponibles en los catalogos actuales)') -f $nm, $r.Applied, $r.Skipped)
         $Script:ProfHint.ForeColor = (icezCol 'Ok')
         Switch-Page 'home'
     } catch {
@@ -1828,11 +1863,11 @@ function Refresh-ProfileList {
         } catch {}
         $c = New-Card 8 $y 876 64
         $c.Controls.Add((New-Label $nm 20 8 420 22 10.5 'Text' -Bold))
-        $c.Controls.Add((New-Label ('{0} apps · {1} tweaks · {2}' -f $ac, $tc, $cr) 20 34 460 18 8.5 'Sub'))
+                $c.Controls.Add((New-Label ((t '{0} apps · {1} tweaks · {2}') -f $ac, $tc, $cr) 20 34 460 18 8.5 'Sub'))
 
         $btnA = New-Object IcezOP.GhostButton
         $btnA.Location = Pt 610 16; $btnA.Size = Sz 74 32
-        $btnA.Text = 'APLICAR'
+        $btnA.Text = (t 'APLICAR')
         $btnA.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
         $btnA.Tag = $f.FullName
         $btnA.Add_Click({ param($s, $e); Apply-ProfileFromFile ([string]$s.Tag) })
@@ -1840,7 +1875,7 @@ function Refresh-ProfileList {
 
         $btnE = New-Object IcezOP.GhostButton
         $btnE.Location = Pt 692 16; $btnE.Size = Sz 88 32
-        $btnE.Text = 'EXPORTAR'
+        $btnE.Text = (t 'EXPORTAR')
         $btnE.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
         $btnE.Tag = $f.FullName
         $btnE.Add_Click({ param($s, $e); Export-ProfileFile ([string]$s.Tag) })
@@ -1848,7 +1883,7 @@ function Refresh-ProfileList {
 
         $btnD = New-Object IcezOP.GhostButton
         $btnD.Location = Pt 788 16; $btnD.Size = Sz 76 32
-        $btnD.Text = 'ELIMINAR'
+        $btnD.Text = (t 'ELIMINAR')
         $btnD.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
         $btnD.ForeColor = (icezCol 'Err')
         $btnD.Tag = $f.FullName
@@ -1885,7 +1920,7 @@ function Refresh-ProfileList {
  $btnSaveProf = New-Object IcezOP.GradientButton
  $btnSaveProf.Location = Pt 400 40
  $btnSaveProf.Size = Sz 180 34
- $btnSaveProf.Text = 'GUARDAR PERFIL'
+ $btnSaveProf.Text = (t 'GUARDAR PERFIL')
  $btnSaveProf.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9)
  $btnSaveProf.Add_Click({ Save-CurrentProfile })
  $cardSave.Controls.Add($btnSaveProf)
@@ -1893,7 +1928,7 @@ function Refresh-ProfileList {
  $btnExportSel = New-Object IcezOP.GhostButton
  $btnExportSel.Location = Pt 596 40
  $btnExportSel.Size = Sz 196 34
- $btnExportSel.Text = 'EXPORTAR ACTUAL'
+ $btnExportSel.Text = (t 'EXPORTAR ACTUAL')
  $btnExportSel.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8.5)
  $btnExportSel.Add_Click({ Export-CurrentSelection })
  $cardSave.Controls.Add($btnExportSel)
@@ -1901,7 +1936,7 @@ function Refresh-ProfileList {
  $btnImport = New-Object IcezOP.GhostButton
  $btnImport.Location = Pt 804 40
  $btnImport.Size = Sz 76 34
- $btnImport.Text = 'IMPORTAR'
+ $btnImport.Text = (t 'IMPORTAR')
  $btnImport.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8.5)
  $btnImport.Add_Click({ Import-ProfileDialog })
  $cardSave.Controls.Add($btnImport)
@@ -1932,7 +1967,7 @@ Refresh-ProfileList
 
  $cbTheme = New-Object System.Windows.Forms.ComboBox
  $cbTheme.Location = Pt 160 38
- $cbTheme.Size = Sz 300 26
+ $cbTheme.Size = Sz 280 26
  $cbTheme.DropDownStyle = 'DropDownList'
  $cbTheme.FlatStyle = 'Flat'
  $cbTheme.DrawMode = 'OwnerDrawFixed'
@@ -1957,14 +1992,53 @@ if ($cbTheme.Items.Contains([string]$Script:Settings.Theme)) {
     $e.Graphics.FillRectangle($brush, $e.Bounds)
     $brush.Dispose()
     $r = New-Object System.Drawing.Rectangle(($e.Bounds.X + 10), $e.Bounds.Y, ($e.Bounds.Width - 10), $e.Bounds.Height)
-    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, [string]$s.Items[$e.Index], $s.Font, $r, (icezCol 'Text'), ([System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left))
+    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, (t ([string]$s.Items[$e.Index])), $s.Font, $r, (icezCol 'Text'), ([System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left))
 })
  $cbTheme.Add_SelectedIndexChanged({
     $Script:Settings.Theme = [string]$this.SelectedItem
     Save-Config
-    $Script:ThemeHint.Text = ('Tema guardado: {0}. Se aplicara al reiniciar icezOP.' -f $this.SelectedItem)
+    $Script:ThemeHint.Text = ((t 'Tema guardado: {0}. Se aplicara al reiniciar icezOP.') -f $this.SelectedItem)
 })
  $cardTheme.Controls.Add($cbTheme)
+
+ $cardTheme.Controls.Add((New-Label 'Idioma:' 470 42 70 22 9.5 'Sub'))
+ $cbLang = New-Object System.Windows.Forms.ComboBox
+ $cbLang.Location = Pt 540 38
+ $cbLang.Size = Sz 220 26
+ $cbLang.DropDownStyle = 'DropDownList'
+ $cbLang.FlatStyle = 'Flat'
+ $cbLang.DrawMode = 'OwnerDrawFixed'
+ $cbLang.ItemHeight = 20
+ $cbLang.BackColor = (icezCol 'Card')
+ $cbLang.ForeColor = (icezCol 'Text')
+ $cbLang.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
+foreach ($code in @('es', 'en', 'pt', 'de', 'fr', 'ja', 'zh')) {
+    [void]$cbLang.Items.Add($code)
+}
+if ($cbLang.Items.Contains($Script:LangCode)) {
+    $cbLang.SelectedIndex = $cbLang.Items.IndexOf($Script:LangCode)
+} else {
+    $cbLang.SelectedIndex = 0
+}
+ $cbLang.Add_DrawItem({
+    param($s, $e)
+    if ($e.Index -lt 0) { return }
+    $code = [string]$s.Items[$e.Index]
+    $sel = (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0)
+    $bgc = if ($sel) { (icezCol 'Acc') } else { (icezCol 'Card') }
+    $brush = New-Object System.Drawing.SolidBrush($bgc)
+    $e.Graphics.FillRectangle($brush, $e.Bounds)
+    $brush.Dispose()
+    $r = New-Object System.Drawing.Rectangle(($e.Bounds.X + 10), $e.Bounds.Y, ($e.Bounds.Width - 10), $e.Bounds.Height)
+    $name = [string]$Script:LangNativos[$code]
+    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $name, $s.Font, $r, (icezCol 'Text'), ([System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left))
+})
+ $cbLang.Add_SelectedIndexChanged({
+    $Script:Settings.Language = [string]$this.SelectedItem
+    Save-Config
+    $Script:ThemeHint.Text = ((t 'Idioma guardado: {0}. Se aplicara al reiniciar icezOP.') -f ([string]$Script:LangNativos[[string]$this.SelectedItem]))
+})
+ $cardTheme.Controls.Add($cbLang)
 
  $Script:ThemeHint = New-Label '' 20 80 700 20 8.5 'Sub'
  $cardTheme.Controls.Add($Script:ThemeHint)
@@ -1977,7 +2051,7 @@ if ($cbTheme.Items.Contains([string]$Script:Settings.Theme)) {
  $cbRestore = New-Object IcezOP.IcezCheckBox
  $cbRestore.Location = Pt 20 44
  $cbRestore.Size = Sz 840 30
- $cbRestore.Text = 'Crear punto de restauracion antes de aplicar tweaks'
+ $cbRestore.Text = (t 'Crear punto de restauracion antes de aplicar tweaks')
  $cbRestore.Checked = [bool]$Script:Settings.RestorePoint
  $cbRestore.Add_CheckedChanged({ $Script:Settings.RestorePoint = $this.Checked })
  $cardExec.Controls.Add($cbRestore)
@@ -1985,7 +2059,7 @@ if ($cbTheme.Items.Contains([string]$Script:Settings.Theme)) {
  $cbSources = New-Object IcezOP.IcezCheckBox
  $cbSources.Location = Pt 20 78
  $cbSources.Size = Sz 840 30
- $cbSources.Text = 'Actualizar origenes de Winget antes de instalar'
+ $cbSources.Text = (t 'Actualizar origenes de Winget antes de instalar')
  $cbSources.Checked = [bool]$Script:Settings.UpdateSources
  $cbSources.Add_CheckedChanged({ $Script:Settings.UpdateSources = $this.Checked })
  $cardExec.Controls.Add($cbSources)
@@ -1993,7 +2067,7 @@ if ($cbTheme.Items.Contains([string]$Script:Settings.Theme)) {
  $cbWg = New-Object IcezOP.IcezCheckBox
  $cbWg.Location = Pt 20 112
  $cbWg.Size = Sz 840 30
- $cbWg.Text = 'Instalar Winget automaticamente si falta'
+ $cbWg.Text = (t 'Instalar Winget automaticamente si falta')
  $cbWg.Checked = [bool]$Script:Settings.AutoWinget
  $cbWg.Add_CheckedChanged({ $Script:Settings.AutoWinget = $this.Checked })
  $cardExec.Controls.Add($cbWg)
@@ -2010,9 +2084,9 @@ if ($cbTheme.Items.Contains([string]$Script:Settings.Theme)) {
  $cbFinish.BackColor = (icezCol 'Card')
  $cbFinish.ForeColor = (icezCol 'Text')
  $cbFinish.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
-[void]$cbFinish.Items.Add('No hacer nada')
-[void]$cbFinish.Items.Add('Cerrar icezOP')
-[void]$cbFinish.Items.Add('Reiniciar el equipo')
+[void]$cbFinish.Items.Add((t 'No hacer nada'))
+[void]$cbFinish.Items.Add((t 'Cerrar icezOP'))
+[void]$cbFinish.Items.Add((t 'Reiniciar el equipo'))
 switch ([string]$Script:Settings.OnFinish) {
     'close'   { $cbFinish.SelectedIndex = 1 }
     'restart' { $cbFinish.SelectedIndex = 2 }
@@ -2038,7 +2112,7 @@ switch ([string]$Script:Settings.OnFinish) {
 })
  $cardExec.Controls.Add($cbFinish)
 
- $Script:LblRetries = New-Label ('Reintentos de Winget al fallar: {0}' -f [int]$Script:Settings.Retries) 20 208 400 20 9.5 'Sub'
+  $Script:LblRetries = New-Label ((t 'Reintentos de Winget al fallar: {0}') -f [int]$Script:Settings.Retries) 20 208 400 20 9.5 'Sub'
  $cardExec.Controls.Add($Script:LblRetries)
 
  $slider = New-Object IcezOP.IcezSlider
@@ -2049,7 +2123,7 @@ switch ([string]$Script:Settings.OnFinish) {
  $slider.Value = [int]$Script:Settings.Retries
  $slider.Add_ValueChanged({
     $Script:Settings.Retries = $this.Value
-    $Script:LblRetries.Text = ('Reintentos de Winget al fallar: {0}' -f $this.Value)
+        $Script:LblRetries.Text = ((t 'Reintentos de Winget al fallar: {0}') -f $this.Value)
 })
  $cardExec.Controls.Add($slider)
  $pSet.Controls.Add($cardExec)
@@ -2156,7 +2230,7 @@ function Show-CategoryModal {
     $btnAll = New-Object IcezOP.GhostButton
     $btnAll.Location = Pt 28 ($mh - 54)
     $btnAll.Size = Sz 180 38
-    $btnAll.Text = 'SELECCIONAR TODO'
+    $btnAll.Text = (t 'SELECCIONAR TODO')
     $btnAll.Add_Click({
         $any = $false
         foreach ($b in $Script:ModalBoxes) { if ($b.Checked) { $any = $true; break } }
@@ -2167,7 +2241,7 @@ function Show-CategoryModal {
     $btnOk = New-Object IcezOP.GradientButton
     $btnOk.Location = Pt ($mw - 190) ($mh - 56)
     $btnOk.Size = Sz 160 40
-    $btnOk.Text = 'LISTO'
+    $btnOk.Text = (t 'LISTO')
     $modal.Controls.Add($btnOk)
 
     $closeAction = { $modal.Close() }.GetNewClosure()
@@ -2197,6 +2271,35 @@ function Start-Run {
     $sync.FailCount = 0
     $sync.Log = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
     $sync.Tasks = $Tasks
+        # Textos ya traducidos para el worker (corre en un runspace sin acceso a t())
+    $sync.Texts = @{
+        Installed   = (t '  OK  Instalado correctamente')
+        Already     = (t '  OK  Ya estaba instalado')
+        FailCode    = (t '  X   Fallo (codigo {0})')
+        Applied     = (t '  OK  Aplicado')
+        Cancel      = (t '  !  Cancelado por el usuario.')
+        Retry       = (t '  ..  Reintento {0}')
+        RestoreOk   = (t '  OK  Punto de restauracion creado')
+        RestoreFail = (t '  !  No se pudo crear el punto: {0}')
+        SourcesOk   = (t '  OK  Origenes de Winget actualizados')
+        NoWinget    = (t '  X   Winget no disponible')
+        WingetOk    = (t '  OK  Winget instalado')
+        WInstall    = (t 'Instalando drivers desde Windows Update...')
+        WQueue      = (t '> Windows Update: {0} actualizacion(es) seleccionada(s)')
+        WOk         = (t '  OK  {0} instalada(s) correctamente')
+        WFail       = (t '  X   Fallo la instalacion')
+        WReboot     = (t '  !  Windows requiere reinicio')
+        GLine       = (t '> GPU {0} - {1}  (v{2})')
+        CLine       = (t '> Componente: {0}')
+        CAlready    = (t '  OK  ya estaba instalado')
+        CInst       = (t '  OK  instalado')
+        Rescan      = (t '> Re-escaneando hardware para verificar...')
+        RescanEnd   = (t 'Dispositivos tras el re-escaneo: {0} · cambios de driver detectados: {1}')
+        Verif       = (t 'Verificando cambios (re-escaneo)...')
+        SumFmt      = (t 'Tareas OK: {0} · Errores: {1} · Drivers cambiados: {2} · Reinicio requerido: {3}')
+        Changed     = (t 'Drivers actualizados:')
+        ErrLine     = (t '  X   {0}')
+    }
 
     $mw = 680
     $mh = 540
@@ -2232,12 +2335,12 @@ function Start-Run {
     $Script:RunCancel = New-Object IcezOP.GhostButton
     $Script:RunCancel.Location = Pt 28 436
     $Script:RunCancel.Size = Sz 160 42
-    $Script:RunCancel.Text = 'CANCELAR'
+    $Script:RunCancel.Text = (t 'CANCELAR')
     $Script:RunCancel.ForeColor = (icezCol 'Err')
     $Script:RunCancel.Add_Click({
         $sync.Cancel = $true
         $Script:RunCancel.Enabled = $false
-        $Script:RunCancel.Text = 'CANCELANDO...'
+        $Script:RunCancel.Text = (t 'CANCELANDO...')
     })
     $modal.Controls.Add($Script:RunCancel)
 
@@ -2248,7 +2351,7 @@ function Start-Run {
     $Script:RunRestart = New-Object IcezOP.GradientButton
     $Script:RunRestart.Location = Pt 350 436
     $Script:RunRestart.Size = Sz 200 42
-    $Script:RunRestart.Text = 'REINICIAR AHORA'
+    $Script:RunRestart.Text = (t 'REINICIAR AHORA')
     $Script:RunRestart.Visible = $false
     $Script:RunRestart.Add_Click({
         Start-Process 'shutdown.exe' -ArgumentList @('/r', '/t', '5', '/c', 'icezOP')
@@ -2259,7 +2362,7 @@ function Start-Run {
     $Script:RunFinish = New-Object IcezOP.GhostButton
     $Script:RunFinish.Location = Pt 562 436
     $Script:RunFinish.Size = Sz 90 42
-    $Script:RunFinish.Text = 'FINALIZAR'
+    $Script:RunFinish.Text = (t 'FINALIZAR')
     $Script:RunFinish.Visible = $false
     $Script:RunFinish.Add_Click({
         switch ([string]$Script:Settings.OnFinish) {
@@ -2347,9 +2450,9 @@ function Start-Run {
             $Script:RunStatusLbl.Visible = $false
             $Script:RunProg.Visible = $false
             $Script:RunCancel.Visible = $false
-            $txt = ('OK  {0} tareas completadas' -f $sync.OkCount)
-            if ($sync.FailCount -gt 0) { $txt += ('   -   X  {0} con errores' -f $sync.FailCount) }
-            $txt += "`r`nReinicia para aplicar todos los cambios."
+            $txt = ((t 'OK  {0} tareas completadas') -f $sync.OkCount)
+            if ($sync.FailCount -gt 0) { $txt += ((t '   -   X  {0} con errores') -f $sync.FailCount) }
+            $txt += ("`r`n" + (t 'Reinicia para aplicar todos los cambios.'))
             $Script:RunSummary.Text = $txt
             $Script:RunSummary.Visible = $true
             $Script:RunRestart.Visible = $true
