@@ -124,12 +124,13 @@ public class CategoryCard : Panel {
         this.AutoSize = true;
         this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         this.Margin = new Padding(0, 0, 15, 15);
+        this.Width = 350; // Ancho base forzado para que no desaparezca
         
         Header = new Label();
         Header.Dock = DockStyle.Top;
         Header.Height = 45;
         Header.TextAlign = ContentAlignment.MiddleLeft;
-        Header.Padding = new Padding(20, 0, 0, 0);
+        Header.Padding = new Padding(20, 0,0, 0);
         Header.Font = new Font("Segoe UI", 10, FontStyle.Bold);
         Header.ForeColor = Color.White;
         Header.Cursor = Cursors.Hand;
@@ -187,7 +188,7 @@ public class WinButton : Button {
             using (Pen p = new Pen(Color.White, 2)) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26, 10, 16, 20); }
         } else {
             using (Pen p = new Pen(this.ForeColor, 2)) {
-                if (IsClose) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26, 10, 16, 20); }
+                if (IsClose) { g.DrawLine(p, 16, 10, 26, 20); g.DrawLine(p, 26,10, 16, 20); }
                 else { g.DrawLine(p, 15, 15, 27, 15); }
             }
         }
@@ -270,17 +271,17 @@ public class DarkScrollPanel : FlowLayoutPanel {
 
 function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = $texto; Color = $color }) }
 
-# --- CARGA DE JSON ---
+# --- CARGA DE JSON (Mejorada para no fallar si se ejecuta por consola) ---
  $RepoURL = "https://raw.githubusercontent.com/icezggg/icezOP/main"
 try {
     $AppCatalog = Invoke-RestMethod -Uri "$RepoURL/apps.json" -ErrorAction Stop
     $TweakCatalog = Invoke-RestMethod -Uri "$RepoURL/tweaks.json" -ErrorAction Stop
 } catch {
-    $localApps = "$PSScriptRoot\apps.json"; $localTweaks = "$PSScriptRoot\tweaks.json"
+    $localApps = ".\apps.json"; $localTweaks = ".\tweaks.json"
     if (Test-Path $localApps -and Test-Path $localTweaks) {
         $AppCatalog = Get-Content -Path $localApps -Raw | ConvertFrom-Json
         $TweakCatalog = Get-Content -Path $localTweaks -Raw | ConvertFrom-Json
-    } else { [System.Windows.Forms.MessageBox]::Show("No se encontraron los JSON.", "Error", 0, 16); Exit }
+    } else { [System.Windows.Forms.MessageBox]::Show("No se pudieron descargar los JSON ni encontrarlos en la carpeta local.", "Error Fatal", 0, 16); Exit }
 }
 
 # --- TEMA ICEZOP ---
@@ -361,7 +362,7 @@ if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." 
 
  $PanelSpecs.Controls.Add($LblOS); $PanelSpecs.Controls.Add($LblCPU); $PanelSpecs.Controls.Add($LblGPU); $PanelSpecs.Controls.Add($LblRAM)
 
-# 2. MAIN AREA (Padding Uniforme 25)
+# 2. MAIN AREA
  $MainContent = New-Object System.Windows.Forms.Panel; $MainContent.Dock = "Fill"; $MainContent.BackColor = $C_BgBase; $MainContent.Padding = New-Object System.Windows.Forms.Padding(25)
  $RootLayout.Controls.Add($MainContent, 1, 0)
 
@@ -387,7 +388,7 @@ if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." 
  $btnClose.Add_MouseEnter({ $btnClose.Invalidate() })
  $btnClose.Add_MouseLeave({ $btnClose.Invalidate() })
 
- $LblHeader = New-Object System.Windows.Forms.Label; $LblHeader.Text = "Instalador de Aplicaciones"; $LblHeader.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold); $LblHeader.ForeColor = $C_TextMain; $LblHeader.Location = New-Object System.Drawing.Point(0, 35); $LblHeader.AutoSize = $true
+ $LblHeader = New-Object System.Windows.Forms.Label; $LblHeader.Text = "Aplicaciones"; $LblHeader.Font = New-Object System.Drawing.Font("Segoe UI", 16, [System.Drawing.FontStyle]::Bold); $LblHeader.ForeColor = $C_TextMain; $LblHeader.Location = New-Object System.Drawing.Point(0, 35); $LblHeader.AutoSize = $true
  $PanelHeader.Controls.Add($LblHeader)
 
  $PanelSearch = New-Object System.Windows.Forms.Panel; $PanelSearch.Location = New-Object System.Drawing.Point(350, 40); $PanelSearch.Size = New-Object System.Drawing.Size(350, 35); $PanelSearch.BackColor = $C_Card
@@ -403,7 +404,7 @@ if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." 
  $DynPanel = New-Object DarkScrollPanel; $DynPanel.Dock = "Fill"; $DynPanel.BackColor = $C_BgBase; $DynPanel.AutoScroll = $true; $DynPanel.WrapContents = $true
  $TableLayout.Controls.Add($DynPanel, 0, 1)
 
-# PANEL DRIVERS (Rediseñado)
+# PANEL DRIVERS
  $PanelDrivers = New-Object System.Windows.Forms.Panel; $PanelDrivers.Dock = "Fill"; $PanelDrivers.BackColor = $C_BgBase; $PanelDrivers.Visible = $false
  $TableLayout.Controls.Add($PanelDrivers, 0, 1)
 
@@ -419,7 +420,7 @@ if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." 
  $DriverListPanel = New-Object DarkScrollPanel; $DriverListPanel.Location = New-Object System.Drawing.Point(0, 90); $DriverListPanel.Size = New-Object System.Drawing.Size(820, 400); $DriverListPanel.BackColor = $C_BgBase; $DriverListPanel.AutoScroll = $true
  $PanelDrivers.Controls.Add($DriverListPanel)
 
-# FOOTER (Log Integrado y Botón Ejecutar Flotante)
+# FOOTER
  $PanelFooter = New-Object System.Windows.Forms.Panel; $PanelFooter.Dock = "Fill"; $PanelFooter.BackColor = $C_BgBase
  $TableLayout.Controls.Add($PanelFooter, 0, 2)
 
@@ -436,7 +437,8 @@ if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." 
  $PanelFooter.Controls.Add($btnExecute)
  $btnExecute.Add_MouseEnter({ if(-not $sync.IsRunning){ $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(159, 102, 246); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(180, 140, 255); $btnExecute.Invalidate() } })
  $btnExecute.Add_MouseLeave({ if(-not $sync.IsRunning){ $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnExecute.Invalidate() } })
- $CurrentModule = "Apps"
+
+  $CurrentModule = "Apps"
  $CurrentCheckboxes = @{}
 
 function Clear-DynamicPanel { $DynPanel.Controls.Clear(); $script:CurrentCheckboxes = @{} }
@@ -533,7 +535,7 @@ function Set-DriversModule {
     }
 })
 
-# --- ESCANEO REAL DE DRIVERS POR TARJETAS ---
+# --- ESCANEO DE DRIVERS CORREGIDO (SIN FREEZE) ---
  $btnScanDrivers.Add_Click({
     $sync.IsScanning = $true
     $btnScanDrivers.Text = "ANALIZANDO..."; $btnScanDrivers.Enabled = $false
@@ -544,21 +546,20 @@ function Set-DriversModule {
     
     $job = {
         param($syncHash)
-        $syncHash.DriverQueue.Enqueue(@{ Name="Iniciando escaneo de hardware..."; Status="[INFO]"; Color="Cyan" })
+        $syncHash.DriverQueue.Enqueue(@{ Name="Iniciando escaneo de hardware..."; Status="[INFO]"; Color=[System.Drawing.Color]::FromArgb(255, 255, 255) })
         
-        $missing = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.ConfigManagerErrorCode -ne 0 -and $_.ConfigManagerErrorCode -ne 22 }
+        $missing = Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.ConfigManagerErrorCode -ne 0 -and $_.ConfigManagerErrorCode -ne 22 } | Select-Object -First 5
         if ($missing) {
-            foreach($dev in $missing | Select-Object -First 5) { $syncHash.DriverQueue.Enqueue(@{ Name=$dev.FriendlyName; Status="[FALTA]"; Color="Red" }) }
-        } else { $syncHash.DriverQueue.Enqueue(@{ Name="No se encontraron dispositivos con errores."; Status="[OK]"; Color=$C_Green }) }
+            foreach($dev in $missing) { $syncHash.DriverQueue.Enqueue(@{ Name=$dev.Name; Status="[FALTA]"; Color=[System.Drawing.Color]::FromArgb(239, 68, 68) }) }
+        } else { $syncHash.DriverQueue.Enqueue(@{ Name="No se encontraron dispositivos con errores."; Status="[OK]"; Color=[System.Drawing.Color]::FromArgb(34, 197, 94) }) }
 
-        $oldDrivers = Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue | Where-Object { $_.DriverDate -ne $null -and $_.DriverDate -lt (Get-Date).AddYears(-3) -and $_.Manufacturer -notmatch "Microsoft" } | Select-Object DeviceName, Manufacturer, DriverVersion, DriverDate -Unique
+        $oldDrivers = Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue | Where-Object { $_.DriverDate -ne $null -and $_.DriverDate -lt (Get-Date).AddYears(-3) -and $_.Manufacturer -notmatch "Microsoft" } | Select-Object DeviceName, Manufacturer, DriverVersion, DriverDate -Unique | Select-Object -First 10
         
         if ($oldDrivers) {
-            foreach($drv in $oldDrivers | Select-Object -First 10) {
-                $dateStr = ([DateTime]$drv.DriverDate).ToString("yyyy-MM-dd")
-                $syncHash.DriverQueue.Enqueue(@{ Name="$($drv.DeviceName) (v$($drv.DriverVersion))"; Status="[ANTIGUO]"; Color="Yellow" })
+            foreach($drv in $oldDrivers) {
+                $syncHash.DriverQueue.Enqueue(@{ Name="$($drv.DeviceName) (v$($drv.DriverVersion))"; Status="[ANTIGUO]"; Color=[System.Drawing.Color]::FromArgb(250, 204, 21) })
             }
-        } else { $syncHash.DriverQueue.Enqueue(@{ Name="Todos los drivers de terceros estan actualizados."; Status="[OK]"; Color=$C_Green }) }
+        } else { $syncHash.DriverQueue.Enqueue(@{ Name="Drivers de terceros actualizados."; Status="[OK]"; Color=[System.Drawing.Color]::FromArgb(34, 197, 94) }) }
 
         $syncHash.IsScanning = $false
     }
