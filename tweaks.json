@@ -1,10 +1,13 @@
 [
   { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Telemetría y Diagnósticos", "Script": "$p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'AllowTelemetry' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'MaxTelemetryAllowed' -Value 0 -Type DWord -Force" },
+  { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Servicio de Telemetría (DiagTrack)", "Script": "Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue; Set-Service DiagTrack -StartupType Disabled" },
   { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Advertising ID", "Script": "$p='HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'Enabled' -Value 0 -Type DWord -Force" },
   { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Experiencias Personalizadas", "Script": "$p='HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Privacy'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'TailoredExperiencesWithDiagnosticDataEnabled' -Value 0 -Type DWord -Force" },
   { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Historial de Actividad", "Script": "$p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\System'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'PublishUserActivities' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'UploadUserActivities' -Value 0 -Type DWord -Force" },
-  { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Sugerencias de Windows", "Script": "Set-ItemProperty 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager' -Name 'SubscribedContent-338389Enabled' -Value 0 -Type DWord -Force" },
-  
+  { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Sugerencias y Apps Patrocinadas", "Script": "$p='HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager'; Set-ItemProperty $p -Name 'SubscribedContent-338388Enabled' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'SubscribedContent-338389Enabled' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'SilentInstalledAppsEnabled' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'SystemPaneSuggestionsEnabled' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'PreInstalledAppsEnabled' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'OemPreInstalledAppsEnabled' -Value 0 -Type DWord -Force" },
+  { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Bing en el Menú Inicio", "Script": "$p='HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search'; Set-ItemProperty $p -Name 'BingSearchEnabled' -Value 0 -Type DWord -Force; Set-ItemProperty $p -Name 'CortanaConsent' -Value 0 -Type DWord -Force" },
+  { "Cat": "Privacidad y Telemetría", "Name": "Desactivar Recall (Windows AI)", "Script": "$p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'DisableAIDataAnalysis' -Value 1 -Type DWord -Force" },
+
   { "Cat": "Copilot e IA", "Name": "Desactivar Windows Copilot", "Script": "$p='HKCU:\\Software\\Policies\\Microsoft\\Windows\\WindowsCopilot'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'TurnOffWindowsCopilot' -Value 1 -Type DWord -Force" },
   { "Cat": "Copilot e IA", "Name": "Quitar Copilot de la Barra de Tareas", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'ShowCopilotButton' -Value 0 -Type DWord -Force" },
 
@@ -12,32 +15,64 @@
   { "Cat": "Interfaz y Explorador", "Name": "Mostrar Archivos Ocultos", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'Hidden' -Value 1 -Type DWord -Force" },
   { "Cat": "Interfaz y Explorador", "Name": "Abrir Explorer en 'Este Equipo'", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'LaunchTo' -Value 1 -Type DWord -Force" },
   { "Cat": "Interfaz y Explorador", "Name": "Restaurar Menú Contextual Clásico (Win10)", "Script": "$p='HKCU:\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name '(Default)' -Value '' -Type String -Force" },
-  { "Cat": "Interfaz y Explorador", "Name": "Desactivar Widgets y Noticias", "Script": "$p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Dsh'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'AllowNewsAndInterests' -Value 0 -Type DWord -Force" },
+  { "Cat": "Interfaz y Explorador", "Name": "Desactivar Widgets y Noticias", "Script": "$p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Dsh'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'AllowNewsAndInterests' -Value 0 -Type DWord -Force; Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'TaskbarDa' -Value 0 -Type DWord -Force" },
   { "Cat": "Interfaz y Explorador", "Name": "Desactivar Chat/Teams", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'TaskbarMn' -Value 0 -Type DWord -Force" },
   { "Cat": "Interfaz y Explorador", "Name": "Alinear Barra a la Izquierda", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' -Name 'TaskbarAl' -Value 0 -Type DWord -Force" },
+  { "Cat": "Interfaz y Explorador", "Name": "Icono de Búsqueda (en vez de caja grande)", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Search' -Name 'SearchboxTaskbarMode' -Value 1 -Type DWord -Force" },
 
   { "Cat": "Apariencia", "Name": "Activar Modo Oscuro", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize' -Name 'AppsUseLightTheme' -Value 0 -Type DWord -Force; Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize' -Name 'SystemUsesLightTheme' -Value 0 -Type DWord -Force" },
   { "Cat": "Apariencia", "Name": "Desactivar Transparencias (Rendimiento)", "Script": "Set-ItemProperty 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize' -Name 'EnableTransparency' -Value 0 -Type DWord -Force" },
-  
-  { "Cat": "Rendimiento", "Name": "Desactivar Hibernación (Libera Disco)", "Script": "powercfg -h off" },
-  { "Cat": "Rendimiento", "Name": "Activar Plan de Energía Ultimate", "Script": "powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 | Out-Null; $p=powercfg -list | Select-String 'e9a42b02'; if($p){$g=($p -split '\\s+')[3]; powercfg /setactive $g}" },
+
+  { "Cat": "Energía y Rendimiento", "Name": "Activar Plan de Energía Ultimate Performance", "Script": "powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>$null | Out-Null; $p=powercfg -list | Select-String 'e9a42b02'; if($p){$g=($p -split '\\s+')[3]; powercfg /setactive $g}" },
+  { "Cat": "Energía y Rendimiento", "Name": "Desactivar Suspensión Selectiva de USB", "Script": "powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; powercfg /setactive SCHEME_CURRENT" },
+  { "Cat": "Energía y Rendimiento", "Name": "Desactivar Ahorro de Energía PCIe (ASPM)", "Script": "powercfg /setacvalueindex SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0; powercfg /setactive SCHEME_CURRENT" },
+  { "Cat": "Energía y Rendimiento", "Name": "Desactivar Hibernación (Libera Disco)", "Script": "powercfg -h off" },
+  { "Cat": "Energía y Rendimiento", "Name": "Desactivar Inicio Rápido (Fast Startup)", "Script": "Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power' -Name 'HiberbootEnabled' -Value 0 -Type DWord -Force" },
+  { "Cat": "Energía y Rendimiento", "Name": "Prioridad de Primer Plano para Apps/Juegos", "Script": "Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl' -Name 'Win32PrioritySeparation' -Value 38 -Type DWord -Force" },
+  { "Cat": "Energía y Rendimiento", "Name": "Quitar Limitación de Red Multimedia (Throttling)", "Script": "$p='HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile'; Set-ItemProperty $p -Name 'NetworkThrottlingIndex' -Value 4294967295 -Type DWord -Force" },
+  { "Cat": "Energía y Rendimiento", "Name": "Sistema Orientado a Juegos (SystemResponsiveness)", "Script": "$p='HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile'; Set-ItemProperty $p -Name 'SystemResponsiveness' -Value 10 -Type DWord -Force" },
+
   { "Cat": "Rendimiento", "Name": "Desactivar SysMain (Superfetch)", "Script": "Stop-Service SysMain -Force -ErrorAction SilentlyContinue; Set-Service SysMain -StartupType Disabled" },
-  { "Cat": "Rendimiento", "Name": "Desactivar Windows Search", "Script": "Stop-Service Wsearch -Force -ErrorAction SilentlyContinue; Set-Service Wsearch -StartupType Disabled" },
-  
+  { "Cat": "Rendimiento", "Name": "Desactivar Windows Search (Si no usas el buscador)", "Script": "Stop-Service Wsearch -Force -ErrorAction SilentlyContinue; Set-Service Wsearch -StartupType Disabled" },
+  { "Cat": "Rendimiento", "Name": "Efectos Visuales al Máximo Rendimiento", "Script": "Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects' -Name 'VisualFXSetting' -Value 2 -Type DWord -Force; Set-ItemProperty 'HKCU:\\Control Panel\\Desktop' -Name 'MenuShowDelay' -Value '0' -Type String -Force" },
+  { "Cat": "Rendimiento", "Name": "Desactivar Nombres de Archivo 8.3 (NTFS)", "Script": "fsutil behavior set disable8dot3 1" },
+  { "Cat": "Rendimiento", "Name": "Desactivar Registro de Último Acceso (NTFS)", "Script": "fsutil behavior set disablelastaccess 1" },
+  { "Cat": "Rendimiento", "Name": "Arranque Más Rápido (timeout del gestor 3s)", "Script": "bcdedit /timeout 3" },
+  { "Cat": "Rendimiento", "Name": "Limpiar Archivos Temporales", "Script": "Remove-Item -Path \"$env:TEMP\\*\" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path \"$env:windir\\Temp\\*\" -Recurse -Force -ErrorAction SilentlyContinue" },
+
   { "Cat": "Gaming", "Name": "Desactivar Xbox Game DVR (Más FPS)", "Script": "Set-ItemProperty 'HKCU:\\System\\GameConfigStore' -Name 'GameDVR_Enabled' -Value 0 -Type DWord -Force; $p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR'; if(!(Test-Path $p)){New-Item $p -Force}; Set-ItemProperty $p -Name 'AllowGameDVR' -Value 0 -Type DWord -Force" },
   { "Cat": "Gaming", "Name": "Activar Hardware Accelerated GPU Scheduling (HAGS)", "Script": "Set-ItemProperty 'HKCU:\\System\\GameConfigStore' -Name 'HwSchMode' -Value 2 -Type DWord -Force" },
+  { "Cat": "Gaming", "Name": "Activar Modo Juego (Game Mode)", "Script": "$p='HKCU:\\Software\\Microsoft\\GameBar'; Set-ItemProperty $p -Name 'AllowAutoGameMode' -Value 1 -Type DWord -Force; Set-ItemProperty $p -Name 'AutoGameModeEnabled' -Value 1 -Type DWord -Force" },
 
   { "Cat": "Red y Ping", "Name": "Preferir IPv4 sobre IPv6", "Script": "Disable-NetAdapterBinding -Name '*' -ComponentID ms_tcpip6 -Confirm:$false" },
   { "Cat": "Red y Ping", "Name": "Optimizar TCP Autotuning y RSS", "Script": "netsh int tcp set global autotuninglevel=normal; netsh int tcp set global rss=enabled" },
+  { "Cat": "Red y Ping", "Name": "Desactivar Nagle (Menor Latencia en Juegos)", "Script": "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | ForEach-Object { $k=\"HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\$($_.InterfaceGuid)\"; Set-ItemProperty $k -Name 'TcpAckFrequency' -Value 1 -Type DWord -Force; Set-ItemProperty $k -Name 'TCPNoDelay' -Value 1 -Type DWord -Force }" },
+  { "Cat": "Red y Ping", "Name": "Configurar DNS Cloudflare (1.1.1.1)", "Script": "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Set-DnsClientServerAddress -ServerAddresses '1.1.1.1','1.0.0.1'" },
   { "Cat": "Red y Ping", "Name": "Limpiar Caché DNS", "Script": "ipconfig /flushdns" },
-  
+
   { "Cat": "Servicios del Sistema", "Name": "Desactivar Servicio de Fax", "Script": "Stop-Service Fax -Force -ErrorAction SilentlyContinue; Set-Service Fax -StartupType Disabled" },
   { "Cat": "Servicios del Sistema", "Name": "Desactivar Registro Remoto", "Script": "Stop-Service RemoteRegistry -Force -ErrorAction SilentlyContinue; Set-Service RemoteRegistry -StartupType Disabled" },
   { "Cat": "Servicios del Sistema", "Name": "Desactivar Print Spooler (Si no imprimes)", "Script": "Stop-Service Spooler -Force -ErrorAction SilentlyContinue; Set-Service Spooler -StartupType Disabled" },
-  
+  { "Cat": "Servicios del Sistema", "Name": "Desactivar dmwappushservice (Telemetría WAP)", "Script": "Stop-Service dmwappushservice -Force -ErrorAction SilentlyContinue; Set-Service dmwappushservice -StartupType Disabled" },
+  { "Cat": "Servicios del Sistema", "Name": "Desactivar MapsBroker (Mapas Offline)", "Script": "Stop-Service MapsBroker -Force -ErrorAction SilentlyContinue; Set-Service MapsBroker -StartupType Disabled" },
+  { "Cat": "Servicios del Sistema", "Name": "Desactivar RetailDemo (Modo Tienda)", "Script": "Stop-Service RetailDemo -Force -ErrorAction SilentlyContinue; Set-Service RetailDemo -StartupType Disabled" },
+  { "Cat": "Servicios del Sistema", "Name": "Desactivar Servicio de Ubicación (lfsvc)", "Script": "Stop-Service lfsvc -Force -ErrorAction SilentlyContinue; Set-Service lfsvc -StartupType Disabled" },
+  { "Cat": "Servicios del Sistema", "Name": "Desactivar Uso Compartido de Red de WMP", "Script": "Stop-Service WMPNetworkSvc -Force -ErrorAction SilentlyContinue; Set-Service WMPNetworkSvc -StartupType Disabled" },
+
+
+  { "Cat": "Tareas Programadas", "Name": "Desactivar Microsoft Compatibility Appraiser", "Script": "Get-ScheduledTask -TaskName 'Microsoft Compatibility Appraiser' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar ProgramDataUpdater (Telemetría)", "Script": "Get-ScheduledTask -TaskName 'ProgramDataUpdater' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar Consolidator (CEIP)", "Script": "Get-ScheduledTask -TaskName 'Consolidator' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar UsbCeip (CEIP USB)", "Script": "Get-ScheduledTask -TaskName 'UsbCeip' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar StartupAppTask (Mantenimiento)", "Script": "Get-ScheduledTask -TaskName 'StartupAppTask' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar Proxy (Recopilación de red)", "Script": "Get-ScheduledTask -TaskName 'Proxy' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar Tareas de Mapas (MapsToastTask)", "Script": "Get-ScheduledTask -TaskName 'MapsToastTask' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null; Get-ScheduledTask -TaskName 'MapsUpdateTask' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+  { "Cat": "Tareas Programadas", "Name": "Desactivar Family Safety Monitor", "Script": "Get-ScheduledTask -TaskName 'FamilySafetyMonitor' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null; Get-ScheduledTask -TaskName 'FamilySafetyRefreshTask' -ErrorAction SilentlyContinue | Disable-ScheduledTask | Out-Null" },
+
   {  "Cat": "Personalizaciones", "Name": "Ejecutar SpotX", "Script": "iex \"& { $(iwr -useb 'https://raw.githubusercontent.com/SpotX-Official/SpotX/refs/heads/main/run.ps1') } -confirm_uninstall_ms_spoti -confirm_spoti_recomended_over -podcasts_off -block_update_on -start_spoti -new_theme -adsections_off -lyrics_stat spotify\"" },
   {  "Cat": "Personalizaciones", "Name": "Ejecutar Microsoft Activation Scripts", "Script": "iex (curl.exe -s --doh-url https://1.1.1.1/dns-query https://get.activated.win | Out-String)" },
   {  "Cat": "Personalizaciones", "Name": "Instalar OfficeCrack", "Script": "$url='https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365ProPlusRetail&platform=x64&language=es-es&version=O16GA'; $dest=\"$env:TEMP\\OfficeSetup.exe\"; Invoke-WebRequest -Uri $url -OutFile $dest; Start-Process $dest" },
-
-  { "Cat": "Experimental (Riesgo)", "Name": "Desactivar VBS y Core Isolation", "Script": "$p='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity'; Set-ItemProperty $p -Name 'Enabled' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue; bcdedit /set hypervisorlaunchtype off" }
+  
+  { "Cat": "Experimental (Riesgo)", "Name": "Desactivar VBS y Core Isolation", "Script": "$p='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity'; Set-ItemProperty $p -Name 'Enabled' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue; bcdedit /set hypervisorlaunchtype off" },
+  { "Cat": "Experimental (Riesgo)", "Name": "Desactivar Tick Dinámico (Latencia)", "Script": "bcdedit /set disabledynamictick yes" }
 ]
