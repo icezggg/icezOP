@@ -1,17 +1,19 @@
 <#
     ═══════════════════════════════════════════════════════════════
-     icezOP v0.1.3 — Post-instalacion y optimizacion para Windows 11
+     icezOP v0.2.0 — Post-instalacion y optimizacion para Windows 11
     ═══════════════════════════════════════════════════════════════
      Motor:    PowerShell 5.1 + WinForms (C# inyectado)
      Apps:     Winget        |  Tweaks: Registro/Servicios/PowerCFG
-     Archivos: apps.json y tweaks.json (local o desde el repo)
+     Drivers:  Motor propio (Win32_PnPSignedDriver + drivers.json)
+     Archivos: apps.json, tweaks.json, drivers.json (local o repo)
+               config.json se crea en %APPDATA%\icezOP
      Ejecutar: powershell -ExecutionPolicy Bypass -File .\icezOP.ps1
               o:  iex (irm 'https://raw.githubusercontent.com/icezggg/icezOP/main/icezop.ps1')
     ═══════════════════════════════════════════════════════════════
 #>
 
 # ════════════════════ 0. ARRANQUE, PERMISOS Y MODO ════════════════════
- $Script:Version  = '0.1.3'
+ $Script:Version  = '0.2.0'
  $Script:RepoBase = 'https://raw.githubusercontent.com/icezggg/icezOP/main'
  $Script:SelfPath = $PSCommandPath
 
@@ -47,25 +49,28 @@ if (-not $isSta) {
     return
 }
 
-# Cargar ensamblados .NET necesarios
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-
-# Forzar resolucion del tipo Color ANTES de usarlo
  $null = [System.Drawing.Color]::Empty
 
-# DPI awareness (que los controles no se vean borrosos)
+# DPI awareness + esquinas redondeadas nativas (Win11)
 if (-not ('Icez.Win32' -as [type])) {
-    Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();' -Name 'Win32' -Namespace 'Icez'
+    Add-Type -Namespace Icez -Name Win32 -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+'@
 }
 [Icez.Win32]::SetProcessDPIAware() | Out-Null
 
-# ════════════════════ 1. CARGA DE CATALOGOS (JSON) ════════════════════
+# ════════════════════ 1. CATALOGOS (JSON) + CONFIG ════════════════════
 if ($Script:SelfPath) {
     $Script:Root = Split-Path -Parent $Script:SelfPath
 } else {
     $Script:Root = $PWD.Path
 }
+
+ $Script:ConfigDir  = Join-Path $env:APPDATA 'icezOP'
+ $Script:ConfigFile = Join-Path $Script:ConfigDir 'config.json'
 
 function ConvertTo-IcezArray {
     param($Data)
@@ -80,14 +85,12 @@ function ConvertTo-IcezArray {
 
 function Import-IcezJson {
     param([string]$Name)
-    # 1) Archivo local (junto al script)
     $local = Join-Path $Script:Root $Name
     if (Test-Path -LiteralPath $local) {
         try {
             return ConvertTo-IcezArray (Get-Content -LiteralPath $local -Raw -Encoding UTF8 | ConvertFrom-Json)
         } catch {}
     }
-    # 2) Remoto (modo iex): descargar del repositorio
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         return ConvertTo-IcezArray (Invoke-RestMethod -Uri ($Script:RepoBase + '/' + $Name) -UseBasicParsing)
@@ -95,53 +98,106 @@ function Import-IcezJson {
     return @()
 }
 
- $Script:Apps   = @(Import-IcezJson 'apps.json'   | Where-Object { $_.Name -and $_.ID -and $_.Cat })
- $Script:Tweaks = @(Import-IcezJson 'tweaks.json' | Where-Object { $_.Name -and $_.Script -and $_.Cat })
+function Load-Config {
+    $cfg = @{
+        Theme         = 'Dark Mode (Por defecto)'
+        RestorePoint  = $true
+        UpdateSources = $true
+        AutoWinget    = $false
+        OnFinish      = 'none'
+        Retries       = 1
+    }
+    if (Test-Path -LiteralPath $Script:ConfigFile) {
+        try {
+            $j = Get-Content -LiteralPath $Script:ConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($p in $j.PSObject.Properties) {
+                if ($cfg.ContainsKey($p.Name)) { $cfg[$p.Name] = $p.Value }
+            }
+        } catch {}
+    }
+    return $cfg
+}
+
+function Save-Config {
+    try {
+        if (-not (Test-Path -LiteralPath $Script:ConfigDir)) {
+            New-Item -ItemType Directory -Path $Script:ConfigDir -Force | Out-Null
+        }
+        $o = @{}
+        foreach ($k in $Script:Settings.Keys) { $o[$k] = $Script:Settings[$k] }
+        ConvertTo-Json $o | Set-Content -LiteralPath $Script:ConfigFile -Encoding UTF8
+    } catch {}
+}
+
+ $Script:Apps    = @(Import-IcezJson 'apps.json'    | Where-Object { $_.Name -and $_.ID -and $_.Cat })
+ $Script:Tweaks  = @(Import-IcezJson 'tweaks.json'  | Where-Object { $_.Name -and $_.Script -and $_.Cat })
+ $Script:Drivers = @(Import-IcezJson 'drivers.json' | Where-Object { $_.Match -and $_.Latest })
+
+ $Script:Settings = Load-Config
 
 if ($Script:Apps.Count -eq 0 -and $Script:Tweaks.Count -eq 0) {
     [void][System.Windows.Forms.MessageBox]::Show(
-        "No se pudieron cargar apps.json ni tweaks.json.`r`n`r`nSe busco en: $Script:Root`r`ny en el repositorio: $Script:RepoBase`r`n`r`nLa interfaz se abrira igual, pero sin catalogos.",
+        "No se pudieron cargar apps.json ni tweaks.json.`r`n`r`nSe busco en: $Script:Root`r`ny en el repositorio: $Script:RepoBase",
         'icezOP', 'OK', 'Warning')
 }
 
-# Categorias en orden de aparicion
  $Script:AppCats = New-Object System.Collections.ArrayList
 foreach ($a in $Script:Apps) {
-    if (-not $Script:AppCats.Contains([string]$a.Cat)) {
-        [void]$Script:AppCats.Add([string]$a.Cat)
-    }
+    if (-not $Script:AppCats.Contains([string]$a.Cat)) { [void]$Script:AppCats.Add([string]$a.Cat) }
 }
  $Script:TweakCats = New-Object System.Collections.ArrayList
 foreach ($t in $Script:Tweaks) {
-    if (-not $Script:TweakCats.Contains([string]$t.Cat)) {
-        [void]$Script:TweakCats.Add([string]$t.Cat)
+    if (-not $Script:TweakCats.Contains([string]$t.Cat)) { [void]$Script:TweakCats.Add([string]$t.Cat) }
+}
+
+# ════════════════════ 2. TEMAS ════════════════════
+# Definiciones RGB por tema (strings "R,G,B" para evitar problemas de evaluacion)
+ $Script:Themes = @{
+    'Dark Mode (Por defecto)' = @{
+        Bg = '14,14,19';     BgAlt = '19,19,25';   Card = '26,26,34';    Border = '42,42,53'
+        Text = '236,236,244'; Sub = '142,142,160'
+        Acc = '139,92,246';  AccL = '167,139,250'; AccD = '91,33,182'
+        Ok = '52,211,153';   Err = '248,113,113';  Warn = '251,191,36'
+        Dim = '90,90,104';   Dim2 = '110,110,124'; LogBg = '11,11,16'; LogFg = '169,169,188'; OvBg = '8,8,12'
+    }
+    'Midnight Blue' = @{
+        Bg = '10,14,24';     BgAlt = '14,19,32';   Card = '20,26,42';    Border = '38,48,72'
+        Text = '230,238,250'; Sub = '136,152,178'
+        Acc = '59,130,246';  AccL = '96,165,250';  AccD = '30,64,175'
+        Ok = '52,211,153';   Err = '248,113,113';  Warn = '251,191,36'
+        Dim = '84,98,122';   Dim2 = '104,118,142'; LogBg = '7,10,18';  LogFg = '160,175,200'; OvBg = '5,7,14'
+    }
+    'High Contrast' = @{
+        Bg = '0,0,0';        BgAlt = '12,12,12';   Card = '24,24,24';    Border = '90,90,90'
+        Text = '255,255,255'; Sub = '180,180,180'
+        Acc = '0,200,255';   AccL = '80,220,255';  AccD = '0,120,160'
+        Ok = '0,255,140';    Err = '255,90,90';    Warn = '255,220,0'
+        Dim = '110,110,110'; Dim2 = '140,140,140'; LogBg = '0,0,0';    LogFg = '200,200,200'; OvBg = '0,0,0'
     }
 }
 
-# ════════════════════ 2. TEMA — COLORES Y GLIFOS ════════════════════
-# Los colores se crean BAJO DEMANDA con esta funcion (no en un @{})
-# para evitar problemas de evaluacion en modo iex.
-function icezCol([string]$N) {
-    switch ($N) {
-        'Bg'     { [System.Drawing.Color]::FromArgb(14, 14, 19) }
-        'BgAlt'  { [System.Drawing.Color]::FromArgb(19, 19, 25) }
-        'Card'   { [System.Drawing.Color]::FromArgb(26, 26, 34) }
-        'Border' { [System.Drawing.Color]::FromArgb(42, 42, 53) }
-        'Text'   { [System.Drawing.Color]::FromArgb(236, 236, 244) }
-        'Sub'    { [System.Drawing.Color]::FromArgb(142, 142, 160) }
-        'Acc'    { [System.Drawing.Color]::FromArgb(139, 92, 246) }
-        'AccL'   { [System.Drawing.Color]::FromArgb(167, 139, 250) }
-        'AccD'   { [System.Drawing.Color]::FromArgb(91, 33, 182) }
-        'Ok'     { [System.Drawing.Color]::FromArgb(52, 211, 153) }
-        'Err'    { [System.Drawing.Color]::FromArgb(248, 113, 113) }
-        'Warn'   { [System.Drawing.Color]::FromArgb(251, 191, 36) }
-        'Dim'    { [System.Drawing.Color]::FromArgb(90, 90, 104) }
-        'Dim2'   { [System.Drawing.Color]::FromArgb(110, 110, 124) }
-        'LogBg'  { [System.Drawing.Color]::FromArgb(11, 11, 16) }
-        'LogFg'  { [System.Drawing.Color]::FromArgb(169, 169, 188) }
-        'OvBg'   { [System.Drawing.Color]::FromArgb(8, 8, 12) }
-        default  { [System.Drawing.Color]::White }
+# Aplica un tema: materializa los colores en $Script:Theme y en la clase C# IcezOP.Theme
+function Apply-Theme([string]$Name) {
+    if (-not $Script:Themes.ContainsKey($Name)) { $Name = 'Dark Mode (Por defecto)' }
+    $Script:ThemeName = $Name
+    $t = $Script:Themes[$Name]
+    $Script:Theme = @{}
+    foreach ($k in $t.Keys) {
+        $rgb = [int[]]($t[$k] -split ',')
+        $Script:Theme[$k] = [System.Drawing.Color]::FromArgb($rgb[0], $rgb[1], $rgb[2])
     }
+    if ('IcezOP.Theme' -as [type]) {
+        [IcezOP.Theme]::Acc    = $Script:Theme['Acc']
+        [IcezOP.Theme]::AccL   = $Script:Theme['AccL']
+        [IcezOP.Theme]::AccD   = $Script:Theme['AccD']
+        [IcezOP.Theme]::Card   = $Script:Theme['Card']
+        [IcezOP.Theme]::Border = $Script:Theme['Border']
+    }
+}
+
+function icezCol([string]$N) {
+    if ($Script:Theme -and $Script:Theme.ContainsKey($N)) { return $Script:Theme[$N] }
+    return [System.Drawing.Color]::White
 }
 
 function icezG([string]$N) {
@@ -167,28 +223,17 @@ try {
 } catch {}
 
 # ════════════════════ 3. ESTADO GLOBAL ════════════════════
- $Script:AppSel   = @{}   # ID de app -> $true/$false (seleccion persistente)
- $Script:TweakSel = @{}   # "Cat|Name" -> $true/$false
- $Script:Settings = @{
-    RestorePoint   = $true
-    UpdateSources  = $true
-    AutoWinget     = $false
-    OnFinish       = 'none'
-    Retries        = 1
-}
+ $Script:AppSel   = @{}
+ $Script:TweakSel = @{}
  $Script:ModalBoxes      = $null
  $Script:ModalCounterLbl = $null
  $Script:ModalTotal      = 0
  $Script:DriverSel       = @{}
  $Script:DriverRendered  = $true
  $Script:RunActive       = $false
- $Script:RunPs           = $null
- $Script:RunRs           = $null
- $Script:RunHandle       = $null
- $Script:DrvPs           = $null
- $Script:DrvRs           = $null
+ $Script:RunPs = $null; $Script:RunRs = $null; $Script:RunHandle = $null
+ $Script:DrvPs = $null; $Script:DrvRs = $null
 
-# Canal de comunicacion UI <-> Runspace (thread-safe)
  $sync = [hashtable]::Synchronized(@{})
  $sync.Log            = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
  $sync.Running        = $false
@@ -199,8 +244,8 @@ try {
  $sync.OkCount        = 0
  $sync.FailCount      = 0
  $sync.DriverPhase    = 'idle'
- $sync.DriverUpdates  = (New-Object System.Collections.ArrayList)
- $sync.DriverProblems = (New-Object System.Collections.ArrayList)
+ $sync.DriverScan     = (New-Object System.Collections.ArrayList)
+ $sync.DriverError    = ''
  $sync.Winget         = $null
 
 # ════════════════════ 4. CONTROLES CUSTOM (C# INYECTADO) ════════════════════
@@ -213,6 +258,16 @@ using System.Windows.Forms;
 
 namespace IcezOP
 {
+    // Colores del tema, modificables desde PowerShell antes de crear controles
+    public static class Theme
+    {
+        public static Color Acc    = Color.FromArgb(139, 92, 246);
+        public static Color AccL   = Color.FromArgb(167, 139, 250);
+        public static Color AccD   = Color.FromArgb(91, 33, 182);
+        public static Color Card   = Color.FromArgb(26, 26, 34);
+        public static Color Border = Color.FromArgb(42, 42, 53);
+    }
+
     public static class Gfx
     {
         public static GraphicsPath Round(RectangleF r, float rad)
@@ -244,8 +299,8 @@ namespace IcezOP
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
             radius = 16;
-            fill = Color.FromArgb(26, 26, 34);
-            border = Color.FromArgb(42, 42, 53);
+            fill = Theme.Card;
+            border = Theme.Border;
         }
         protected override void OnPaintBackground(PaintEventArgs e)
         {
@@ -263,8 +318,6 @@ namespace IcezOP
         private bool isChecked;
         private bool isHover;
         private bool star;
-        private Color top;
-        private Color bottom;
         public bool Checked
         {
             get { return isChecked; }
@@ -278,8 +331,6 @@ namespace IcezOP
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9.75F);
-            top = Color.FromArgb(167, 139, 250);
-            bottom = Color.FromArgb(109, 40, 217);
             Height = 30;
         }
         protected override void OnMouseEnter(EventArgs e) { isHover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -299,15 +350,15 @@ namespace IcezOP
             {
                 if (isChecked)
                 {
-                    using (LinearGradientBrush lb = new LinearGradientBrush(br, top, bottom, LinearGradientMode.Vertical))
+                    using (LinearGradientBrush lb = new LinearGradientBrush(br, Theme.AccL, Theme.AccD, LinearGradientMode.Vertical))
                         g.FillPath(lb, p);
                 }
                 else
                 {
-                    using (SolidBrush sb = new SolidBrush(Color.FromArgb(26, 26, 34)))
+                    using (SolidBrush sb = new SolidBrush(Theme.Card))
                         g.FillPath(sb, p);
                 }
-                Color bc = isChecked ? Color.FromArgb(167, 139, 250) : (isHover ? Color.FromArgb(139, 92, 246) : Color.FromArgb(64, 64, 76));
+                Color bc = isChecked ? Theme.AccL : (isHover ? Theme.Acc : Color.FromArgb(64, 64, 76));
                 using (Pen pen = new Pen(bc, 1.5f)) g.DrawPath(pen, p);
             }
             if (isChecked)
@@ -328,8 +379,8 @@ namespace IcezOP
             if (star)
             {
                 using (Font sf = new Font("Segoe UI", 7.5F, FontStyle.Bold))
-                using (SolidBrush sb2 = new SolidBrush(Color.FromArgb(167, 139, 250)))
-                    g.DrawString("★", sf, sb2, tx + ts.Width + 5f, (Height - ts.Height) / 2f - 1f);
+                using (SolidBrush sb2 = new SolidBrush(Theme.AccL))
+                    g.DrawString("*", sf, sb2, tx + ts.Width + 5f, (Height - ts.Height) / 2f - 1f);
             }
         }
     }
@@ -352,8 +403,8 @@ namespace IcezOP
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
-            cTop = Color.FromArgb(139, 92, 246);
-            cBottom = Color.FromArgb(109, 40, 217);
+            cTop = Theme.Acc;
+            cBottom = Theme.AccD;
             Font = new Font("Segoe UI Semibold", 10F);
             ForeColor = Color.White;
             gfont = "Segoe MDL2 Assets";
@@ -428,7 +479,7 @@ namespace IcezOP
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI Semibold", 9F);
-            ForeColor = Color.FromArgb(167, 139, 250);
+            ForeColor = Theme.AccL;
         }
         protected override void OnMouseEnter(EventArgs e) { isHover = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { isHover = false; Invalidate(); base.OnMouseLeave(e); }
@@ -441,7 +492,7 @@ namespace IcezOP
             {
                 if (isHover)
                 {
-                    using (SolidBrush b = new SolidBrush(Color.FromArgb(26, 139, 92, 246)))
+                    using (SolidBrush b = new SolidBrush(Color.FromArgb(26, Theme.Acc)))
                         g.FillPath(b, p);
                 }
                 using (Pen pen = new Pen(Enabled ? Color.FromArgb(160, ForeColor) : Color.FromArgb(90, 90, 105)))
@@ -524,14 +575,14 @@ namespace IcezOP
             if (act || hov)
             {
                 using (GraphicsPath p = Gfx.Round(new RectangleF(8f, 3f, Width - 16f, Height - 6f), 10f))
-                using (SolidBrush b = new SolidBrush(act ? Color.FromArgb(50, 139, 92, 246) : Color.FromArgb(24, 139, 92, 246)))
+                using (SolidBrush b = new SolidBrush(act ? Color.FromArgb(50, Theme.Acc) : Color.FromArgb(24, Theme.Acc)))
                     g.FillPath(b, p);
             }
             using (Font gf = new Font(gfont, 11.5F))
             {
                 SizeF gs = g.MeasureString(glyph, gf);
                 float gx = showTxt ? 20f : (Width - gs.Width) / 2f;
-                using (SolidBrush b = new SolidBrush(act ? Color.FromArgb(196, 181, 253) : Color.FromArgb(150, 150, 165)))
+                using (SolidBrush b = new SolidBrush(act ? Theme.AccL : Color.FromArgb(150, 150, 165)))
                     g.DrawString(glyph, gf, b, gx, (Height - gs.Height) / 2f);
                 if (showTxt)
                 {
@@ -543,7 +594,7 @@ namespace IcezOP
             if (act && showTxt)
             {
                 using (GraphicsPath p = Gfx.Round(new RectangleF(12f, Height / 2f - 8f, 3f, 16f), 1.5f))
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(167, 139, 250)))
+                using (SolidBrush b = new SolidBrush(Theme.AccL))
                     g.FillPath(b, p);
             }
         }
@@ -577,13 +628,13 @@ namespace IcezOP
             {
                 using (SolidBrush b = new SolidBrush(hov ? Color.FromArgb(35, 35, 49) : Color.FromArgb(27, 27, 35)))
                     g.FillPath(b, p);
-                using (Pen pen = new Pen(hov ? Color.FromArgb(90, 139, 92, 246) : Color.FromArgb(42, 42, 53), 1f))
+                using (Pen pen = new Pen(hov ? Color.FromArgb(90, Theme.Acc) : Theme.Border, 1f))
                     g.DrawPath(pen, p);
             }
             float ms = 40f;
             RectangleF mr = new RectangleF(16f, (Height - ms) / 2f, ms, ms);
             using (GraphicsPath mp = Gfx.Round(mr, 12f))
-            using (LinearGradientBrush lb = new LinearGradientBrush(mr, Color.FromArgb(167, 139, 250), Color.FromArgb(91, 33, 182), LinearGradientMode.Vertical))
+            using (LinearGradientBrush lb = new LinearGradientBrush(mr, Theme.AccL, Theme.AccD, LinearGradientMode.Vertical))
                 g.FillPath(lb, mp);
             using (Font mf = new Font("Segoe UI Semibold", 14F))
             {
@@ -598,7 +649,7 @@ namespace IcezOP
             using (Font tf = new Font("Segoe UI Semibold", 9.75F))
                 TextRenderer.DrawText(g, title, tf, tr1, Color.FromArgb(237, 237, 245), TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.HidePrefix);
             using (Font sf = new Font("Segoe UI", 8.25F))
-                TextRenderer.DrawText(g, sub, sf, tr2, subAcc ? Color.FromArgb(167, 139, 250) : Color.FromArgb(140, 140, 156), TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                TextRenderer.DrawText(g, sub, sf, tr2, subAcc ? Theme.AccL : Color.FromArgb(140, 140, 156), TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
     }
 
@@ -629,7 +680,7 @@ namespace IcezOP
                 {
                     RectangleF fr = new RectangleF(0f, 0f, w, Height);
                     using (GraphicsPath fp = Gfx.Round(fr, Height / 2f))
-                    using (LinearGradientBrush lb = new LinearGradientBrush(fr, Color.FromArgb(167, 139, 250), Color.FromArgb(109, 40, 217), LinearGradientMode.Horizontal))
+                    using (LinearGradientBrush lb = new LinearGradientBrush(fr, Theme.AccL, Theme.AccD, LinearGradientMode.Horizontal))
                         e.Graphics.FillPath(lb, fp);
                 }
             }
@@ -688,10 +739,10 @@ namespace IcezOP
             if (px > pad)
             {
                 using (GraphicsPath f = Gfx.Round(new RectangleF(pad, y - 2f, px - pad, 4f), 2f))
-                using (SolidBrush fb = new SolidBrush(Color.FromArgb(139, 92, 246)))
+                using (SolidBrush fb = new SolidBrush(Theme.Acc))
                     g.FillPath(fb, f);
             }
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(167, 139, 250)))
+            using (SolidBrush tb = new SolidBrush(Theme.AccL))
                 g.FillEllipse(tb, px - 7, y - 7, 14, 14);
             using (Pen pen = new Pen(Color.FromArgb(20, 20, 26), 2f))
                 g.DrawEllipse(pen, px - 7, y - 7, 14, 14);
@@ -703,6 +754,9 @@ namespace IcezOP
 if (-not ('IcezOP.IcezCheckBox' -as [type])) {
     Add-Type -TypeDefinition $cs -ReferencedAssemblies @('System.dll','System.Drawing.dll','System.Windows.Forms.dll')
 }
+
+# Aplicar el tema guardado ANTES de construir la interfaz
+Apply-Theme ([string]$Script:Settings.Theme)
 
 # ════════════════════ 5. HELPERS DE UI ════════════════════
 function Pt([int]$x, [int]$y) { New-Object System.Drawing.Point($x, $y) }
@@ -735,6 +789,53 @@ function New-Card([int]$X, [int]$Y, [int]$W, [int]$H) {
     return $c
 }
 
+# Esquinas redondeadas NATIVAS de Windows 11 (sin artefactos negros).
+# Fallback a Region clasica si DWM no soporta el atributo (Win10).
+function Set-FormRounded([System.Windows.Forms.Form]$f, [int]$Radius = 14) {
+    $applied = $false
+    try {
+        $null = $f.Handle
+        $pref = 2   # DWMWCP_ROUND
+        $hr = [Icez.Win32]::DwmSetWindowAttribute($f.Handle, 33, [ref]$pref, 4)
+        if ($hr -eq 0) { $applied = $true }
+    } catch {}
+    if (-not $applied) {
+        try {
+            $rg = [IcezOP.Gfx]::Round((RectF 0 0 $f.Width $f.Height), $Radius)
+            $f.Region = New-Object System.Drawing.Region($rg)
+        } catch {}
+    }
+}
+
+# Overlay oscuro con fundido de entrada (efecto modal con blur simulado)
+function Show-IcezOverlay {
+    $ov = New-Object System.Windows.Forms.Form
+    $ov.FormBorderStyle = 'None'
+    $ov.ShowInTaskbar = $false
+    $ov.StartPosition = 'Manual'
+    $ov.Bounds = $Script:Form.Bounds
+    $ov.BackColor = (icezCol 'OvBg')
+    $ov.Opacity = 0
+    $ov.Show($Script:Form)
+    $t = New-Object System.Windows.Forms.Timer
+    $t.Interval = 16
+    $t.Add_Tick({
+        if ($ov.Opacity -lt 0.62) { $ov.Opacity = [Math]::Min(0.62, $ov.Opacity + 0.07) }
+        else { $this.Stop(); $this.Dispose() }
+    }.GetNewClosure())
+    $t.Start()
+    return $ov
+}
+
+function Get-WingetPath {
+    $wg = (Get-Command winget -ErrorAction SilentlyContinue).Source
+    if (-not $wg) {
+        $alt = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'
+        if (Test-Path $alt) { $wg = $alt }
+    }
+    return $wg
+}
+
 function Update-ModalCounter {
     if ($Script:ModalCounterLbl -and $Script:ModalBoxes) {
         $n = 0
@@ -762,24 +863,24 @@ function Update-HomeUI {
     $Script:HomeStatT.Text = [string]$t
     $Script:HomeStatQ.Text = [string]($a + $t)
     $Script:ExecBtn.Enabled = (($a + $t) -gt 0)
-    $Script:StatusLbl.Text  = ('En cola: {0} apps · {1} tweaks' -f $a, $t)
+    $Script:StatusLbl.Text  = ('En cola: {0} apps - {1} tweaks' -f $a, $t)
     foreach ($cat in $Script:AppTiles.Keys) {
         $tot = @($Script:Apps | Where-Object { $_.Cat -eq $cat }).Count
         $sel = @($Script:Apps | Where-Object { $_.Cat -eq $cat -and [bool]$Script:AppSel[$_.ID] }).Count
         $tile = $Script:AppTiles[$cat]
-        $tile.Subtitle = ('{0} apps · {1} marcadas' -f $tot, $sel)
+        $tile.Subtitle = ('{0} apps - {1} marcadas' -f $tot, $sel)
         $tile.SubAccent = ($sel -gt 0)
     }
     foreach ($cat in $Script:TweakTiles.Keys) {
         $tot = @($Script:Tweaks | Where-Object { $_.Cat -eq $cat }).Count
         $sel = @($Script:Tweaks | Where-Object { $_.Cat -eq $cat -and [bool]$Script:TweakSel[($_.Cat + '|' + $_.Name)] }).Count
         $tile = $Script:TweakTiles[$cat]
-        $tile.Subtitle = ('{0} tweaks · {1} marcados' -f $tot, $sel)
+        $tile.Subtitle = ('{0} tweaks - {1} marcados' -f $tot, $sel)
         $tile.SubAccent = ($sel -gt 0)
     }
 }
 
-# ════════════════════ 6. WORKERS (codigo que corre en Runspaces) ════════════════════
+# ════════════════════ 6. WORKERS (Runspaces) ════════════════════
  $Script:WorkerCode = @'
 param($sync, $cfg)
 function Log([string]$m) { $sync.Log.Enqueue($m) }
@@ -862,31 +963,27 @@ for ($i = 0; $i -lt $total; $i++) {
                 else { Log '  OK  Aplicado'; $ok = $true }
             }
 
-            'drivers' {
-                try {
-                    $sess = New-Object -ComObject Microsoft.Update.Session
-                    $sea = $sess.CreateUpdateSearcher()
-                    $sea.Online = $true
-                    Log '  ..  Buscando drivers'
-                    $res = $sea.Search("IsInstalled=0 and Type='Driver'")
-                    $coll = New-Object -ComObject Microsoft.Update.UpdateColl
-                    foreach ($u in $res.Updates) {
-                        if ($t.Titles -contains [string]$u.Title) { [void]$coll.Add($u) }
-                    }
-                    if ($coll.Count -eq 0) { Log '  !  Ya no disponibles'; break }
-                    $dl = $sess.CreateUpdateDownloader()
-                    $dl.Updates = $coll
-                    $null = $dl.Download()
-                    Log '  ..  Instalando'
-                    $ins = $sess.CreateUpdateInstaller()
-                    $ins.Updates = $coll
-                    $ri = $ins.Install()
-                    if ($ri.ResultCode -eq 2 -or $ri.ResultCode -eq 3) {
-                        Log ('  OK  ' + $coll.Count + ' driver(s)')
-                        if ($ri.RebootRequired) { Log '  !  Reinicio requerido' }
-                        $ok = $true
-                    } else { Log ('  X   Codigo ' + $ri.ResultCode) }
-                } catch { Log ('  X   ' + $_.Exception.Message) }
+            'driver' {
+                if ($t.Action -eq 'winget' -and $t.Id) {
+                    if (-not $sync.Winget) { Log '  X   Winget no disponible'; break }
+                    $wg = $sync.Winget
+                    & $wg install --id $t.Id --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
+                    $code = $LASTEXITCODE
+                    if ($code -eq 0) { Log '  OK  Instalador ejecutado correctamente'; $ok = $true }
+                    else { Log ('  X   Fallo (codigo ' + $code + ')') }
+                }
+                elseif ($t.Action -eq 'url' -and $t.Url) {
+                    Start-Process $t.Url
+                    Log '  OK  Se abrio la pagina oficial de descarga en el navegador'
+                    $ok = $true
+                }
+                else { Log '  !  Este driver no tiene accion definida en drivers.json' }
+            }
+
+            'openurl' {
+                Start-Process $t.Url
+                Log '  OK  Abierta en el navegador'
+                $ok = $true
             }
         }
     } catch { Log ('  X   Error: ' + $_.Exception.Message) }
@@ -897,32 +994,74 @@ for ($i = 0; $i -lt $total; $i++) {
  $sync.Done = $true
 '@
 
- $Script:DriverSearchCode = @'
-param($sync)
- $sync.DriverPhase = 'searching'
-try {
-    $bad = New-Object System.Collections.ArrayList
-    try {
-        Get-PnpDevice -PresentOnly | Where-Object { $_.Status -ne 'OK' } | Select-Object -First 25 | ForEach-Object {
-            [void]$bad.Add(@{ Name = [string]$_.FriendlyName; Status = [string]$_.Status; Class = [string]$_.Class })
-        }
-    } catch {}
-    $sync.DriverProblems = $bad
+# Escaneo LOCAL de controladores (Win32_PnPSignedDriver) + analisis contra drivers.json
+ $Script:DriverScanCode = @'
+param($sync, $catalog)
 
-    $sess = New-Object -ComObject Microsoft.Update.Session
-    $sea = $sess.CreateUpdateSearcher()
-    $sea.Online = $true
-    $res = $sea.Search("IsInstalled=0 and Type='Driver'")
+function CmpVer([string]$x, [string]$y) {
+    $ax = @()
+    foreach ($p in ($x -split '\.')) { $v = 0; if ([int]::TryParse($p, [ref]$v)) { $ax += $v } else { $ax += 0 } }
+    $ay = @()
+    foreach ($p in ($y -split '\.')) { $v = 0; if ([int]::TryParse($p, [ref]$v)) { $ay += $v } else { $ay += 0 } }
+    $n = [Math]::Max($ax.Count, $ay.Count)
+    for ($i = 0; $i -lt $n; $i++) {
+        $vx = 0; if ($i -lt $ax.Count) { $vx = $ax[$i] }
+        $vy = 0; if ($i -lt $ay.Count) { $vy = $ay[$i] }
+        if ($vx -lt $vy) { return -1 }
+        if ($vx -gt $vy) { return 1 }
+    }
+    return 0
+}
+
+ $sync.DriverPhase = 'scanning'
+try {
+    $raw = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop | Where-Object { $_.DeviceName })
+    $seen = @{}
     $list = New-Object System.Collections.ArrayList
-    foreach ($u in $res.Updates) {
+    foreach ($d in $raw) {
+        $n = [string]$d.DeviceName
+        if ([string]::IsNullOrWhiteSpace($n)) { continue }
+        $key = $n.ToLower()
+        if ($seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+
+        $cur = [string]$d.DriverVersion
+        $dateStr = ''
+        if ($d.DriverDate) {
+            $ds = [string]$d.DriverDate
+            if ($ds.Length -ge 8) { $dateStr = $ds.Substring(0,4) + '-' + $ds.Substring(4,2) + '-' + $ds.Substring(6,2) }
+        }
+
+        $state = 'unknown'
+        $latest = ''; $action = ''; $id = ''; $url = ''; $note = ''
+        foreach ($c in $catalog) {
+            if ($n -match [string]$c.Match) {
+                $latest = [string]$c.Latest
+                if ($c.Action) { $action = [string]$c.Action }
+                if ($c.Id)     { $id = [string]$c.Id }
+                if ($c.Url)    { $url = [string]$c.Url }
+                if ($c.Note)   { $note = [string]$c.Note }
+                if ($cur -and $latest) {
+                    if ((CmpVer $cur $latest) -lt 0) { $state = 'update' } else { $state = 'current' }
+                }
+                break
+            }
+        }
+
         [void]$list.Add(@{
-            Title    = [string]$u.Title
-            Version  = [string]$u.DriverVerVersion
-            Date     = [string]$u.DriverVerDate
-            Provider = [string]$u.DriverManufacturer
+            Name    = $n
+            Current = $cur
+            Latest  = $latest
+            Date    = $dateStr
+            Mfr     = [string]$d.Manufacturer
+            State   = $state
+            Action  = $action
+            Id      = $id
+            Url     = $url
+            Note    = $note
         })
     }
-    $sync.DriverUpdates = $list
+    $sync.DriverScan = $list
     $sync.DriverPhase = 'done'
 } catch {
     $sync.DriverError = $_.Exception.Message
@@ -941,8 +1080,20 @@ try {
  $Script:Form.Size = Sz 1160 720
  $Script:Form.BackColor = (icezCol 'Bg')
  $Script:Form.Font = New-Object System.Drawing.Font('Segoe UI', 9.75)
- $rgp = [IcezOP.Gfx]::Round((RectF 0 0 1160 720), 16)
- $Script:Form.Region = New-Object System.Drawing.Region($rgp)
+
+# Esquinas redondeadas nativas (Win11) - reemplaza al Region clasico
+Set-FormRounded $Script:Form 16
+
+# Borde exterior redondeado dibujado a mano (AntiAlias, color del tema)
+ $Script:Form.Add_Paint({
+    $g = $_.Graphics
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $r = RectF 0.5 0.5 ($Script:Form.ClientSize.Width - 1) ($Script:Form.ClientSize.Height - 1)
+    $p = [IcezOP.Gfx]::Round($r, 14)
+    $pen = New-Object System.Drawing.Pen((icezCol 'Border'))
+    $g.DrawPath($pen, $p)
+    $pen.Dispose()
+})
 
 # Icono generado en runtime
 try {
@@ -973,7 +1124,6 @@ try {
  $btnMenu.Add_Click({ $Script:Collapsed = -not $Script:Collapsed; $animTimer.Start() })
  $header.Controls.Add($btnMenu)
 
-# Logo centrado "icez" + "OP"
  $gTmp = $Script:Form.CreateGraphics()
  $fLogo = New-Object System.Drawing.Font('Segoe Script', 22, ([System.Drawing.FontStyle]::Bold -bor [System.Drawing.FontStyle]::Italic))
  $w1 = [int]$gTmp.MeasureString('icez', $fLogo).Width
@@ -1003,7 +1153,6 @@ try {
  $header.Controls.Add($btnMin)
  $header.Controls.Add($btnClose)
 
-# Arrastre de ventana borderless
  $Script:DragInfo = @{ Down = $false; X = 0; Y = 0 }
 function Enable-Drag($ctl) {
     $ctl.Add_MouseDown({ if ($_.Button -eq [System.Windows.Forms.MouseButtons]::Left) { $Script:DragInfo.Down = $true; $Script:DragInfo.X = $_.X; $Script:DragInfo.Y = $_.Y } })
@@ -1019,7 +1168,6 @@ Enable-Drag $header
 Enable-Drag $logo1
 Enable-Drag $logo2
 
-# Separador de 1px bajo el header
  $sep = New-Object System.Windows.Forms.Panel
  $sep.Dock = 'Top'
  $sep.Height = 1
@@ -1037,7 +1185,7 @@ Enable-Drag $logo2
  $bline.BackColor = (icezCol 'Border')
  $bottom.Controls.Add($bline)
 
- $Script:StatusLbl = New-Label 'En cola: 0 apps · 0 tweaks' 24 18 640 22 9.5 'Sub'
+ $Script:StatusLbl = New-Label 'En cola: 0 apps - 0 tweaks' 24 18 640 22 9.5 'Sub'
  $bottom.Controls.Add($Script:StatusLbl)
 
  $verLbl = New-Label ('icezOP v' + $Script:Version) 24 40 300 16 8 'Dim'
@@ -1071,11 +1219,11 @@ function New-NavItem([string]$Glyph, [string]$Text, [string]$Tag, [int]$Y) {
     $script:sidebar.Controls.Add($n)
     $Script:NavList += $n
 }
-New-NavItem (icezG 'Home') 'Inicio'          'home' 20
-New-NavItem (icezG 'Apps') 'Aplicaciones'    'apps' 68
-New-NavItem (icezG 'Fix')  'Tweaks'          'tweaks' 116
-New-NavItem (icezG 'Drv')  'Controladores'   'drivers' 164
-New-NavItem (icezG 'Gear') 'Ajustes'         'settings' 212
+New-NavItem (icezG 'Home') 'Inicio'        'home' 20
+New-NavItem (icezG 'Apps') 'Aplicaciones'  'apps' 68
+New-NavItem (icezG 'Fix')  'Tweaks'        'tweaks' 116
+New-NavItem (icezG 'Drv')  'Controladores' 'drivers' 164
+New-NavItem (icezG 'Gear') 'Ajustes'       'settings' 212
 
 # ── Host de contenido (Dock Fill) ──────────────────────────────────
  $content = New-Object System.Windows.Forms.Panel
@@ -1114,7 +1262,7 @@ function Switch-Page {
  $btnRec = New-Object IcezOP.GradientButton
  $btnRec.Location = Pt 24 80
  $btnRec.Size = Sz 230 36
- $btnRec.Text = '★  MARCAR RECOMENDADOS'
+ $btnRec.Text = 'MARCAR RECOMENDADOS'
  $btnRec.Add_Click({
     foreach ($a in $Script:Apps) { if ($a.Rec) { $Script:AppSel[[string]$a.ID] = $true } }
     Update-HomeUI
@@ -1147,9 +1295,9 @@ foreach ($s in @('Apps seleccionadas', 'Tweaks seleccionados', 'Tareas en cola')
 
  $how = New-Card 24 330 892 104
  $how.Controls.Add((New-Label 'Como funciona?' 24 14 300 24 11 'Text' -Bold))
- $how.Controls.Add((New-Label '1 · Abri una categoria y marca apps (Winget) o tweaks (registro, servicios...).' 24 42 840 18 8.75 'Sub'))
- $how.Controls.Add((New-Label '2 · Revisa los controladores pendientes en Controladores.' 24 62 840 18 8.75 'Sub'))
- $how.Controls.Add((New-Label '3 · Pulsa EJECUTAR. Todo se procesa en cola sin congelar la interfaz.' 24 82 840 18 8.75 'Sub'))
+ $how.Controls.Add((New-Label '1 - Abri una categoria y marca apps (Winget) o tweaks (registro, servicios...).' 24 42 840 18 8.75 'Sub'))
+ $how.Controls.Add((New-Label '2 - Revisa los controladores en Controladores (escaneo local contra drivers.json).' 24 62 840 18 8.75 'Sub'))
+ $how.Controls.Add((New-Label '3 - Pulsa EJECUTAR. Todo se procesa en cola sin congelar la interfaz.' 24 82 840 18 8.75 'Sub'))
  $pHome.Controls.Add($how)
 
 # ═══════════ PAGINA: APLICACIONES ═══════════
@@ -1204,60 +1352,57 @@ foreach ($cat in $Script:TweakCats) {
     $tweakFlow.Controls.Add($tile)
 }
 
-# ═══════════ PAGINA: CONTROLADORES ═══════════
+# ═══════════ PAGINA: CONTROLADORES (motor propio) ═══════════
  $pDrv = New-Page 'drivers'
  $pDrv.Controls.Add((New-Label 'Controladores' 24 16 400 34 15 'Text' -Bold))
- $pDrv.Controls.Add((New-Label 'Busca e instala controladores pendientes desde Windows Update.' 24 48 700 22 9.5 'Sub'))
+ $pDrv.Controls.Add((New-Label 'Escaneo local contra drivers.json - sin Windows Update. Los desactualizados aparecen arriba.' 24 48 760 22 9.5 'Sub'))
 
- $drvCard = New-Card 24 80 892 100
- $drvCard.Controls.Add((New-Label 'Busqueda de controladores' 20 16 400 24 10.5 'Text' -Bold))
- $Script:DriverStatusLbl = New-Label 'Nunca se ha buscado. Pulsa el boton para empezar.' 20 44 440 20 9 'Sub'
+ $drvCard = New-Card 24 80 892 84
+ $drvCard.Controls.Add((New-Label 'Escaneo de controladores' 20 12 400 24 10.5 'Text' -Bold))
+ $Script:DriverStatusLbl = New-Label 'Nunca se ha escaneado. Pulsa ESCANEAR para analizar tu equipo.' 20 42 620 20 9 'Sub'
  $drvCard.Controls.Add($Script:DriverStatusLbl)
 
- $Script:DrvSearchBtn = New-Object IcezOP.GradientButton
- $Script:DrvSearchBtn.Location = Pt 668 30
- $Script:DrvSearchBtn.Size = Sz 200 40
- $Script:DrvSearchBtn.Text = 'BUSCAR'
- $Script:DrvSearchBtn.Glyph = (icezG 'Drv')
- $Script:DrvSearchBtn.GlyphFont = $Script:GlyphFont
- $drvCard.Controls.Add($Script:DrvSearchBtn)
+ $Script:DrvScanBtn = New-Object IcezOP.GradientButton
+ $Script:DrvScanBtn.Location = Pt 692 22
+ $Script:DrvScanBtn.Size = Sz 176 40
+ $Script:DrvScanBtn.Text = 'ESCANEAR'
+ $Script:DrvScanBtn.Glyph = (icezG 'Drv')
+ $Script:DrvScanBtn.GlyphFont = $Script:GlyphFont
+ $drvCard.Controls.Add($Script:DrvScanBtn)
  $pDrv.Controls.Add($drvCard)
 
- $pDrv.Controls.Add((New-Label 'Dispositivos con problemas' 24 194 400 24 11 'Text' -Bold))
- $Script:DriverProblemsPanel = New-Object System.Windows.Forms.Panel
- $Script:DriverProblemsPanel.Location = Pt 24 222
- $Script:DriverProblemsPanel.Size = Sz 892 92
- $Script:DriverProblemsPanel.BackColor = (icezCol 'Bg')
- $Script:DriverProblemsPanel.AutoScroll = $true
- $pDrv.Controls.Add($Script:DriverProblemsPanel)
+ $Script:DrvPendTitle = New-Label 'Pendientes de actualizacion (0)' 24 178 500 24 11 'Text' -Bold
+ $pDrv.Controls.Add($Script:DrvPendTitle)
 
- $pDrv.Controls.Add((New-Label 'Actualizaciones disponibles' 24 326 400 24 11 'Text' -Bold))
- $Script:DriverListPanel = New-Object System.Windows.Forms.Panel
- $Script:DriverListPanel.Location = Pt 24 354
- $Script:DriverListPanel.Size = Sz 892 170
- $Script:DriverListPanel.BackColor = (icezCol 'Bg')
- $Script:DriverListPanel.AutoScroll = $true
- $pDrv.Controls.Add($Script:DriverListPanel)
+ $Script:DriverUpdatesPanel = New-Object System.Windows.Forms.Panel
+ $Script:DriverUpdatesPanel.Location = Pt 24 204
+ $Script:DriverUpdatesPanel.Size = Sz 892 150
+ $Script:DriverUpdatesPanel.BackColor = (icezCol 'Bg')
+ $Script:DriverUpdatesPanel.AutoScroll = $true
+ $pDrv.Controls.Add($Script:DriverUpdatesPanel)
+
+ $Script:DrvInstTitle = New-Label 'Instalados (0)' 24 366 500 24 11 'Text' -Bold
+ $pDrv.Controls.Add($Script:DrvInstTitle)
+
+ $Script:DriverInstalledPanel = New-Object System.Windows.Forms.Panel
+ $Script:DriverInstalledPanel.Location = Pt 24 392
+ $Script:DriverInstalledPanel.Size = Sz 892 146
+ $Script:DriverInstalledPanel.BackColor = (icezCol 'Bg')
+ $Script:DriverInstalledPanel.AutoScroll = $true
+ $pDrv.Controls.Add($Script:DriverInstalledPanel)
 
  $Script:DrvUpdBtn = New-Object IcezOP.GradientButton
- $Script:DrvUpdBtn.Location = Pt 24 536
+ $Script:DrvUpdBtn.Location = Pt 24 548
  $Script:DrvUpdBtn.Size = Sz 300 42
  $Script:DrvUpdBtn.Text = 'ACTUALIZAR SELECCIONADOS'
  $Script:DrvUpdBtn.Visible = $false
- $Script:DrvUpdBtn.Add_Click({
-    $titles = @($Script:DriverSel.Keys | Where-Object { $Script:DriverSel[$_] })
-    if ($titles.Count -eq 0) { return }
-    $tasks = New-Object System.Collections.ArrayList
-    [void]$tasks.Add(@{ Kind = 'drivers'; Label = ('Actualizar {0} driver(s)' -f $titles.Count); Titles = $titles })
-    Start-Run -Tasks $tasks -Title 'Actualizando controladores'
-})
  $pDrv.Controls.Add($Script:DrvUpdBtn)
 
- $Script:DrvSearchBtn.Add_Click({
+ $Script:DrvScanBtn.Add_Click({
     if ($Script:DrvPs -and $Script:DrvPs.InvocationStateInfo.State -eq 'Running') { return }
-    $sync.DriverPhase = 'searching'
+    $sync.DriverPhase = 'scanning'
     $Script:DriverRendered = $false
-    $Script:DriverStatusLbl.Text = 'Buscando actualizaciones de controladores...'
+    $Script:DriverStatusLbl.Text = 'Escaneando controladores instalados...'
     try { if ($Script:DrvPs) { $Script:DrvPs.Dispose(); $Script:DrvRs.Dispose() } } catch {}
     $Script:DrvRs = [runspacefactory]::CreateRunspace()
     $Script:DrvRs.ApartmentState = 'STA'
@@ -1265,99 +1410,222 @@ foreach ($cat in $Script:TweakCats) {
     $Script:DrvRs.Open()
     $Script:DrvPs = [powershell]::Create()
     $Script:DrvPs.Runspace = $Script:DrvRs
-    [void]$Script:DrvPs.AddScript($Script:DriverSearchCode)
+    [void]$Script:DrvPs.AddScript($Script:DriverScanCode)
     [void]$Script:DrvPs.AddArgument($sync)
+    [void]$Script:DrvPs.AddArgument($Script:Drivers)
     $null = $Script:DrvPs.BeginInvoke()
 })
 
 function Build-DriverCards {
-    $probs = @($sync.DriverProblems)
-    $ups = @($sync.DriverUpdates)
-    $Script:DriverProblemsPanel.Controls.Clear()
-    $Script:DriverListPanel.Controls.Clear()
+    $scan = @($sync.DriverScan)
+    $Script:DriverUpdatesPanel.Controls.Clear()
+    $Script:DriverInstalledPanel.Controls.Clear()
     $Script:DriverSel = @{}
 
-    if ($probs.Count -gt 0) {
-        $y = 0
-        foreach ($p in $probs) {
-            $c = New-Object IcezOP.CardPanel
-            $c.Location = Pt 0 $y
-            $c.Size = Sz 874 44
-            $c.BorderColor = [System.Drawing.Color]::FromArgb(110, 248, 113, 113)
-            $c.Controls.Add((New-Label ('!  ' + $p.Name) 16 11 620 20 9.5 'Text'))
-            $c.Controls.Add((New-Label ('Estado: ' + $p.Status) 646 13 210 18 8.5 'Err'))
-            $Script:DriverProblemsPanel.Controls.Add($c)
-            $y += 52
-        }
-    } else {
-        $Script:DriverProblemsPanel.Controls.Add((New-Label 'Ningun dispositivo con problemas.' 4 6 500 20 9 'Sub'))
-    }
+    $updates = @($scan | Where-Object { $_.State -eq 'update' })
+    $rest    = @($scan | Where-Object { $_.State -ne 'update' })
+    $currents = @($rest | Where-Object { $_.State -eq 'current' })
 
-    if ($ups.Count -gt 0) {
+    $Script:DrvPendTitle.Text = ('Pendientes de actualizacion ({0})' -f $updates.Count)
+    $Script:DrvInstTitle.Text = ('Instalados ({0})' -f $rest.Count)
+
+    # ── Grupo 1: DESACTUALIZADOS (arriba, destacados, con accion) ──
+    if ($updates.Count -gt 0) {
         $y = 0
-        foreach ($u in $ups) {
+        foreach ($u in $updates) {
             $c = New-Object IcezOP.CardPanel
             $c.Location = Pt 0 $y
-            $c.Size = Sz 874 58
+            $c.Size = Sz 874 64
+            $c.BorderColor = (icezCol 'Acc')
+
             $cb = New-Object IcezOP.IcezCheckBox
-            $cb.Location = Pt 16 6
-            $cb.Size = Sz 640 28
-            $cb.Text = [string]$u.Title
-            $c.Controls.Add($cb)
-            $c.Controls.Add((New-Label ('v{0} · {1}' -f $u.Version, $u.Date) 44 32 600 18 8.25 'Sub'))
-            $k = [string]$u.Title
+            $cb.Location = Pt 16 4
+            $cb.Size = Sz 620 30
+            $cb.Text = [string]$u.Name
+
+            $sub = ''
+            if ($u.Current) { $sub += ('v' + $u.Current) }
+            if ($u.Latest)  { $sub += ('   ->   v' + $u.Latest) }
+            if ($u.Date)    { $sub += ('   -   ' + $u.Date) }
+            $c.Controls.Add((New-Label $sub 44 34 640 20 8.25 'AccL'))
+
+            $btn = New-Object IcezOP.GhostButton
+            $btn.Location = Pt 716 17
+            $btn.Size = Sz 142 30
+            $btn.Text = 'ANADIR A LA COLA'
+            $btn.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 8)
+
+            $k = [string]$u.Name
+            $btn.Add_Click({ $cb.Checked = -not $cb.Checked }.GetNewClosure())
             $cb.Add_CheckedChanged({
                 param($s, $e)
                 $Script:DriverSel[$k] = $s.Checked
+                if ($s.Checked) {
+                    $btn.Text = 'EN COLA'
+                    $btn.ForeColor = (icezCol 'Ok')
+                } else {
+                    $btn.Text = 'ANADIR A LA COLA'
+                    $btn.ForeColor = (icezCol 'AccL')
+                }
                 Update-DriverBtn
             }.GetNewClosure())
-            $Script:DriverListPanel.Controls.Add($c)
-            $y += 66
+
+            $c.Controls.Add($cb)
+            $c.Controls.Add($btn)
+            $Script:DriverUpdatesPanel.Controls.Add($c)
+            $y += 72
         }
     } else {
-        $Script:DriverListPanel.Controls.Add((New-Label 'Todo al dia. No hay actualizaciones pendientes.' 4 6 560 20 9 'Sub'))
+        if ($Script:Drivers.Count -eq 0) {
+            $Script:DriverUpdatesPanel.Controls.Add((New-Label 'drivers.json no encontrado o sin entradas: no se puede analizar que esta desactualizado.' 4 8 760 36 9 'Warn'))
+        } else {
+            $Script:DriverUpdatesPanel.Controls.Add((New-Label 'Sin controladores pendientes segun drivers.json.' 4 8 700 20 9 'Ok'))
+        }
     }
-    $Script:DriverStatusLbl.Text = ('{0} actualizaciones · {1} problemas' -f $ups.Count, $probs.Count)
+
+    # ── Grupo 2: AL DIA / SIN DATOS (abajo, tenues, sin boton) ──
+    if ($rest.Count -eq 0) {
+        $Script:DriverInstalledPanel.Controls.Add((New-Label 'No se detectaron dispositivos.' 4 6 600 20 9 'Sub'))
+    } else {
+        $lim = 80
+        $y = 0
+        $i = 0
+        foreach ($r in $rest) {
+            if ($i -ge $lim) {
+                $Script:DriverInstalledPanel.Controls.Add((New-Label ('... y ' + ($rest.Count - $lim) + ' dispositivos mas') 4 $y 600 20 9 'Sub'))
+                break
+            }
+            $c = New-Object IcezOP.CardPanel
+            $c.Location = Pt 0 $y
+            $c.Size = Sz 874 44
+            $c.FillColor = (icezCol 'BgAlt')
+            $c.BorderColor = (icezCol 'BgAlt')
+
+            $nameCol = 'Sub'
+            $verText = ('v' + $r.Current)
+            if ($r.State -eq 'unknown') {
+                $nameCol = 'Dim2'
+                if (-not $r.Current) { $verText = 'sin version' }
+            }
+            $c.Controls.Add((New-Label ([string]$r.Name) 16 11 640 20 9 $nameCol))
+            $c.Controls.Add((New-Label $verText 660 13 195 18 8.25 'Dim2'))
+            $Script:DriverInstalledPanel.Controls.Add($c)
+            $y += 50
+            $i++
+        }
+    }
+
+    $Script:DriverStatusLbl.Text = ('{0} pendientes - {1} al dia - {2} dispositivos en total' -f $updates.Count, $currents.Count, $rest.Count)
     Update-DriverBtn
 }
+
+# Ejecutar drivers seleccionados
+ $Script:DrvUpdBtn.Add_Click({
+    $names = @($Script:DriverSel.Keys | Where-Object { $Script:DriverSel[$_] })
+    if ($names.Count -eq 0) { return }
+    $scan = @($sync.DriverScan)
+    $sync.Winget = Get-WingetPath
+    $tasks = New-Object System.Collections.ArrayList
+    foreach ($nm in $names) {
+        $it = @($scan | Where-Object { $_.Name -eq $nm }) | Select-Object -First 1
+        if ($it) {
+            [void]$tasks.Add(@{
+                Kind   = 'driver'
+                Label  = ('Driver: ' + $it.Name)
+                Action = [string]$it.Action
+                Id     = [string]$it.Id
+                Url    = [string]$it.Url
+            })
+        }
+    }
+    if ($tasks.Count -gt 0) {
+        Start-Run -Tasks $tasks -Title 'Actualizando controladores'
+    }
+})
 
 # ═══════════ PAGINA: AJUSTES ═══════════
  $pSet = New-Page 'settings'
  $pSet.Controls.Add((New-Label 'Ajustes' 24 20 400 34 15 'Text' -Bold))
- $pSet.Controls.Add((New-Label 'Preferencias de ejecucion de icezOP.' 24 52 600 22 9.5 'Sub'))
+ $pSet.Controls.Add((New-Label 'Preferencias y apariencia de icezOP.' 24 52 600 22 9.5 'Sub'))
 
- $cardExec = New-Card 24 82 892 320
- $cardExec.Controls.Add((New-Label 'Ejecucion' 20 16 300 24 11 'Text' -Bold))
+# ── Card: Apariencia (temas) ──
+ $cardTheme = New-Card 24 82 892 110
+ $cardTheme.Controls.Add((New-Label 'Apariencia' 20 12 300 24 11 'Text' -Bold))
+ $cardTheme.Controls.Add((New-Label 'Tema de colores:' 20 42 140 22 9.5 'Sub'))
+
+ $cbTheme = New-Object System.Windows.Forms.ComboBox
+ $cbTheme.Location = Pt 160 38
+ $cbTheme.Size = Sz 300 26
+ $cbTheme.DropDownStyle = 'DropDownList'
+ $cbTheme.FlatStyle = 'Flat'
+ $cbTheme.DrawMode = 'OwnerDrawFixed'
+ $cbTheme.ItemHeight = 20
+ $cbTheme.BackColor = (icezCol 'Card')
+ $cbTheme.ForeColor = (icezCol 'Text')
+ $cbTheme.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
+foreach ($tn in @('Dark Mode (Por defecto)', 'Midnight Blue', 'High Contrast')) {
+    [void]$cbTheme.Items.Add($tn)
+}
+if ($cbTheme.Items.Contains([string]$Script:Settings.Theme)) {
+    $cbTheme.SelectedIndex = $cbTheme.Items.IndexOf([string]$Script:Settings.Theme)
+} else {
+    $cbTheme.SelectedIndex = 0
+}
+ $cbTheme.Add_DrawItem({
+    param($s, $e)
+    if ($e.Index -lt 0) { return }
+    $sel = (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0)
+    $bgc = if ($sel) { (icezCol 'Acc') } else { (icezCol 'Card') }
+    $brush = New-Object System.Drawing.SolidBrush($bgc)
+    $e.Graphics.FillRectangle($brush, $e.Bounds)
+    $brush.Dispose()
+    $r = New-Object System.Drawing.Rectangle(($e.Bounds.X + 10), $e.Bounds.Y, ($e.Bounds.Width - 10), $e.Bounds.Height)
+    [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, [string]$s.Items[$e.Index], $s.Font, $r, (icezCol 'Text'), ([System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left))
+})
+ $cbTheme.Add_SelectedIndexChanged({
+    $Script:Settings.Theme = [string]$this.SelectedItem
+    Save-Config
+    $Script:ThemeHint.Text = ('Tema guardado: {0}. Se aplicara al reiniciar icezOP.' -f $this.SelectedItem)
+})
+ $cardTheme.Controls.Add($cbTheme)
+
+ $Script:ThemeHint = New-Label '' 20 80 700 20 8.5 'Sub'
+ $cardTheme.Controls.Add($Script:ThemeHint)
+ $pSet.Controls.Add($cardTheme)
+
+# ── Card: Ejecucion ──
+ $cardExec = New-Card 24 204 892 268
+ $cardExec.Controls.Add((New-Label 'Ejecucion' 20 14 300 24 11 'Text' -Bold))
 
  $cbRestore = New-Object IcezOP.IcezCheckBox
- $cbRestore.Location = Pt 20 52
+ $cbRestore.Location = Pt 20 44
  $cbRestore.Size = Sz 840 30
  $cbRestore.Text = 'Crear punto de restauracion antes de aplicar tweaks'
- $cbRestore.Checked = $Script:Settings.RestorePoint
+ $cbRestore.Checked = [bool]$Script:Settings.RestorePoint
  $cbRestore.Add_CheckedChanged({ $Script:Settings.RestorePoint = $this.Checked })
  $cardExec.Controls.Add($cbRestore)
 
  $cbSources = New-Object IcezOP.IcezCheckBox
- $cbSources.Location = Pt 20 88
+ $cbSources.Location = Pt 20 78
  $cbSources.Size = Sz 840 30
  $cbSources.Text = 'Actualizar origenes de Winget antes de instalar'
- $cbSources.Checked = $Script:Settings.UpdateSources
+ $cbSources.Checked = [bool]$Script:Settings.UpdateSources
  $cbSources.Add_CheckedChanged({ $Script:Settings.UpdateSources = $this.Checked })
  $cardExec.Controls.Add($cbSources)
 
  $cbWg = New-Object IcezOP.IcezCheckBox
- $cbWg.Location = Pt 20 124
+ $cbWg.Location = Pt 20 112
  $cbWg.Size = Sz 840 30
  $cbWg.Text = 'Instalar Winget automaticamente si falta'
- $cbWg.Checked = $Script:Settings.AutoWinget
+ $cbWg.Checked = [bool]$Script:Settings.AutoWinget
  $cbWg.Add_CheckedChanged({ $Script:Settings.AutoWinget = $this.Checked })
  $cardExec.Controls.Add($cbWg)
 
- $cardExec.Controls.Add((New-Label 'Al finalizar:' 20 166 300 20 9.5 'Sub'))
+ $cardExec.Controls.Add((New-Label 'Al finalizar:' 20 152 300 20 9.5 'Sub'))
 
  $cbFinish = New-Object System.Windows.Forms.ComboBox
- $cbFinish.Location = Pt 20 190
- $cbFinish.Size = Sz 300 28
+ $cbFinish.Location = Pt 20 172
+ $cbFinish.Size = Sz 300 26
  $cbFinish.DropDownStyle = 'DropDownList'
  $cbFinish.FlatStyle = 'Flat'
  $cbFinish.DrawMode = 'OwnerDrawFixed'
@@ -1368,8 +1636,11 @@ function Build-DriverCards {
 [void]$cbFinish.Items.Add('No hacer nada')
 [void]$cbFinish.Items.Add('Cerrar icezOP')
 [void]$cbFinish.Items.Add('Reiniciar el equipo')
- $cbFinish.SelectedIndex = 0
-
+switch ([string]$Script:Settings.OnFinish) {
+    'close'   { $cbFinish.SelectedIndex = 1 }
+    'restart' { $cbFinish.SelectedIndex = 2 }
+    default   { $cbFinish.SelectedIndex = 0 }
+}
  $cbFinish.Add_DrawItem({
     param($s, $e)
     if ($e.Index -lt 0) { return }
@@ -1381,7 +1652,6 @@ function Build-DriverCards {
     $r = New-Object System.Drawing.Rectangle(($e.Bounds.X + 10), $e.Bounds.Y, ($e.Bounds.Width - 10), $e.Bounds.Height)
     [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, [string]$s.Items[$e.Index], $s.Font, $r, (icezCol 'Text'), ([System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left))
 })
-
  $cbFinish.Add_SelectedIndexChanged({
     switch ($this.SelectedIndex) {
         1 { $Script:Settings.OnFinish = 'close' }
@@ -1391,15 +1661,15 @@ function Build-DriverCards {
 })
  $cardExec.Controls.Add($cbFinish)
 
- $Script:LblRetries = New-Label ('Reintentos de Winget al fallar: {0}' -f $Script:Settings.Retries) 20 236 400 20 9.5 'Sub'
+ $Script:LblRetries = New-Label ('Reintentos de Winget al fallar: {0}' -f [int]$Script:Settings.Retries) 20 208 400 20 9.5 'Sub'
  $cardExec.Controls.Add($Script:LblRetries)
 
  $slider = New-Object IcezOP.IcezSlider
- $slider.Location = Pt 20 258
+ $slider.Location = Pt 20 228
  $slider.Size = Sz 300 26
  $slider.Minimum = 0
  $slider.Maximum = 3
- $slider.Value = $Script:Settings.Retries
+ $slider.Value = [int]$Script:Settings.Retries
  $slider.Add_ValueChanged({
     $Script:Settings.Retries = $this.Value
     $Script:LblRetries.Text = ('Reintentos de Winget al fallar: {0}' -f $this.Value)
@@ -1407,12 +1677,13 @@ function Build-DriverCards {
  $cardExec.Controls.Add($slider)
  $pSet.Controls.Add($cardExec)
 
- $cardAbout = New-Card 24 418 892 140
- $cardAbout.Controls.Add((New-Label 'Acerca de' 20 16 300 24 11 'Text' -Bold))
- $cardAbout.Controls.Add((New-Label ('icezOP v' + $Script:Version) 20 46 700 20 9 'Sub'))
+# ── Card: Acerca de ──
+ $cardAbout = New-Card 24 484 892 100
+ $cardAbout.Controls.Add((New-Label 'Acerca de' 20 12 300 24 11 'Text' -Bold))
+ $cardAbout.Controls.Add((New-Label ('icezOP v' + $Script:Version + ' - Post-instalacion y optimizacion para Windows 11') 20 38 700 20 9 'Sub'))
 
  $linkGh = New-Object System.Windows.Forms.LinkLabel
- $linkGh.Location = Pt 20 68
+ $linkGh.Location = Pt 20 58
  $linkGh.Size = Sz 400 20
  $linkGh.Text = 'github.com/icezggg/icezOP'
  $linkGh.LinkColor = (icezCol 'AccL')
@@ -1421,7 +1692,7 @@ function Build-DriverCards {
  $linkGh.Add_Click({ Start-Process 'https://github.com/icezggg/icezOP' })
  $cardAbout.Controls.Add($linkGh)
 
- $cardAbout.Controls.Add((New-Label 'Motor: PowerShell + WinForms (C#) · Instalador: Winget · Sin garantias.' 20 96 840 34 8.25 'Dim2'))
+ $cardAbout.Controls.Add((New-Label 'Motor: PowerShell + WinForms (C#) - Instalador: Winget - Sin garantias.' 20 80 840 18 8.25 'Dim2'))
  $pSet.Controls.Add($cardAbout)
 
 # ── Ensamblado (el orden de Add controla el docking) ──────────────
@@ -1431,7 +1702,7 @@ function Build-DriverCards {
  $Script:Form.Controls.Add($sep)
  $Script:Form.Controls.Add($header)
 
-# ════════════════════ 8. MODAL DE CATEGORIA ════════════════════
+# ════════════════════ 8. MODAL DE CATEGORIA (con overlay fade) ════════════════════
 function Show-CategoryModal {
     param([string]$Category, [string]$Type)
 
@@ -1439,15 +1710,6 @@ function Show-CategoryModal {
     if ($Type -eq 'app') { $items = @($Script:Apps | Where-Object { $_.Cat -eq $Category }) }
     else { $items = @($Script:Tweaks | Where-Object { $_.Cat -eq $Category }) }
     if ($items.Count -eq 0) { return }
-
-    # Overlay oscuro
-    $ov = New-Object System.Windows.Forms.Form
-    $ov.FormBorderStyle = 'None'
-    $ov.ShowInTaskbar = $false
-    $ov.StartPosition = 'Manual'
-    $ov.Bounds = $Script:Form.Bounds
-    $ov.BackColor = (icezCol 'OvBg')
-    $ov.Opacity = 0.72
 
     $mw = 660
     $needed = $items.Count * 38 + 24
@@ -1462,8 +1724,7 @@ function Show-CategoryModal {
     $modal.Size = Sz $mw $mh
     $modal.Location = Pt ([int]($Script:Form.Left + ($Script:Form.Width - $mw) / 2)) ([int]($Script:Form.Top + ($Script:Form.Height - $mh) / 2))
     $modal.BackColor = (icezCol 'Bg')
-    $mrg = [IcezOP.Gfx]::Round((RectF 0 0 $mw $mh), 18)
-    $modal.Region = New-Object System.Drawing.Region($mrg)
+    Set-FormRounded $modal 18
 
     $modal.Controls.Add((New-Label $Category 28 14 440 30 13 'Text' -Bold))
     $counter = New-Label '' ($mw - 250) 22 160 20 9 'Sub'
@@ -1533,9 +1794,11 @@ function Show-CategoryModal {
     $btnOk.Add_Click($closeAction)
     $btnX.Add_Click($closeAction)
 
-    $ov.Show($Script:Form)
+    # Overlay oscuro con fade + dialogo modal
+    $ov = Show-IcezOverlay
     [void]$modal.ShowDialog($ov)
     $ov.Close()
+    $ov.Dispose()
     $Script:ModalCounterLbl = $null
     $Script:ModalBoxes = $null
     Update-HomeUI
@@ -1555,14 +1818,6 @@ function Start-Run {
     $sync.Log = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
     $sync.Tasks = $Tasks
 
-    $ov = New-Object System.Windows.Forms.Form
-    $ov.FormBorderStyle = 'None'
-    $ov.ShowInTaskbar = $false
-    $ov.StartPosition = 'Manual'
-    $ov.Bounds = $Script:Form.Bounds
-    $ov.BackColor = (icezCol 'OvBg')
-    $ov.Opacity = 0.72
-
     $mw = 680
     $mh = 540
     $modal = New-Object System.Windows.Forms.Form
@@ -1572,8 +1827,7 @@ function Start-Run {
     $modal.Size = Sz $mw $mh
     $modal.Location = Pt ([int]($Script:Form.Left + ($Script:Form.Width - $mw) / 2)) ([int]($Script:Form.Top + ($Script:Form.Height - $mh) / 2))
     $modal.BackColor = (icezCol 'Bg')
-    $mrg = [IcezOP.Gfx]::Round((RectF 0 0 $mw $mh), 18)
-    $modal.Region = New-Object System.Drawing.Region($mrg)
+    Set-FormRounded $modal 18
 
     $modal.Controls.Add((New-Label $Title 28 20 500 30 13.5 'Text' -Bold))
     $Script:RunStatusLbl = New-Label 'Preparando...' 28 62 620 22 9.75 'Sub'
@@ -1607,7 +1861,6 @@ function Start-Run {
     })
     $modal.Controls.Add($Script:RunCancel)
 
-    # Estado final (oculto hasta terminar)
     $Script:RunSummary = New-Label '' 28 56 624 64 11 'Text' -Bold
     $Script:RunSummary.Visible = $false
     $modal.Controls.Add($Script:RunSummary)
@@ -1629,7 +1882,7 @@ function Start-Run {
     $Script:RunFinish.Text = 'FINALIZAR'
     $Script:RunFinish.Visible = $false
     $Script:RunFinish.Add_Click({
-        switch ($Script:Settings.OnFinish) {
+        switch ([string]$Script:Settings.OnFinish) {
             'close'   { $Script:Form.Close() }
             'restart' { Start-Process 'shutdown.exe' -ArgumentList @('/r', '/t', '5', '/c', 'icezOP'); $Script:Form.Close() }
             default   { $Script:RunModal.Close() }
@@ -1645,7 +1898,6 @@ function Start-Run {
 
     $Script:RunModal = $modal
 
-    # Lanzar worker en Runspace
     try { if ($Script:RunPs) { $Script:RunPs.Dispose(); $Script:RunRs.Dispose() } } catch {}
     $Script:RunRs = [runspacefactory]::CreateRunspace()
     $Script:RunRs.ApartmentState = 'STA'
@@ -1659,9 +1911,10 @@ function Start-Run {
     $Script:RunHandle = $Script:RunPs.BeginInvoke()
 
     $Script:RunActive = $true
-    $ov.Show($Script:Form)
+    $ov = Show-IcezOverlay
     [void]$modal.ShowDialog($ov)
     $ov.Close()
+    $ov.Dispose()
 }
 
 # Boton EJECUTAR principal
@@ -1670,26 +1923,22 @@ function Start-Run {
     $twSel = @($Script:Tweaks | Where-Object { [bool]$Script:TweakSel[($_.Cat + '|' + $_.Name)] })
     if (($appsSel.Count + $twSel.Count) -eq 0) { return }
 
-    $wg = (Get-Command winget -ErrorAction SilentlyContinue).Source
-    if (-not $wg) {
-        $alt = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'
-        if (Test-Path $alt) { $wg = $alt }
-    }
+    $wg = Get-WingetPath
     $sync.Winget = $wg
 
     $tasks = New-Object System.Collections.ArrayList
     if ($appsSel.Count -gt 0 -and -not $wg) {
-        if ($Script:Settings.AutoWinget) {
+        if ([bool]$Script:Settings.AutoWinget) {
             [void]$tasks.Add(@{ Kind = 'wingetboot'; Label = 'Instalar Winget' })
         } else {
             [void][System.Windows.Forms.MessageBox]::Show($Script:Form, 'Winget no esta disponible. Activa la instalacion automatica en Ajustes.', 'icezOP', 'OK', 'Warning')
             return
         }
     }
-    if ($twSel.Count -gt 0 -and $Script:Settings.RestorePoint) {
+    if ($twSel.Count -gt 0 -and [bool]$Script:Settings.RestorePoint) {
         [void]$tasks.Add(@{ Kind = 'restore'; Label = 'Crear punto de restauracion' })
     }
-    if ($appsSel.Count -gt 0 -and $wg -and $Script:Settings.UpdateSources) {
+    if ($appsSel.Count -gt 0 -and $wg -and [bool]$Script:Settings.UpdateSources) {
         [void]$tasks.Add(@{ Kind = 'sources'; Label = 'Actualizar origenes de Winget' })
     }
     foreach ($a in $appsSel) { [void]$tasks.Add(@{ Kind = 'app'; Id = [string]$a.ID; Label = ('Instalar ' + $a.Name) }) }
@@ -1702,7 +1951,6 @@ function Start-Run {
  $uiTimer = New-Object System.Windows.Forms.Timer
  $uiTimer.Interval = 120
  $uiTimer.Add_Tick({
-    # Motor de ejecucion
     if ($Script:RunActive) {
         while ($sync.Log.Count -gt 0) { [void]$Script:RunLogBox.Items.Add([string]$sync.Log.Dequeue()) }
         if ($Script:RunLogBox.Items.Count -gt 0) { $Script:RunLogBox.TopIndex = $Script:RunLogBox.Items.Count - 1 }
@@ -1720,7 +1968,7 @@ function Start-Run {
             $Script:RunProg.Visible = $false
             $Script:RunCancel.Visible = $false
             $txt = ('OK  {0} tareas completadas' -f $sync.OkCount)
-            if ($sync.FailCount -gt 0) { $txt += ('   ·   X  {0} con errores' -f $sync.FailCount) }
+            if ($sync.FailCount -gt 0) { $txt += ('   -   X  {0} con errores' -f $sync.FailCount) }
             $txt += "`r`nReinicia para aplicar todos los cambios."
             $Script:RunSummary.Text = $txt
             $Script:RunSummary.Visible = $true
@@ -1728,16 +1976,14 @@ function Start-Run {
             $Script:RunFinish.Visible = $true
         }
     }
-    # Busqueda de drivers
-    switch ($sync.DriverPhase) {
-        'searching' { if ($Script:DriverStatusLbl) { $Script:DriverStatusLbl.Text = 'Buscando actualizaciones...' } }
-        'done'      { if (-not $Script:DriverRendered) { $Script:DriverRendered = $true; Build-DriverCards; $sync.DriverPhase = 'idle' } }
-        'error'     { if (-not $Script:DriverRendered) { $Script:DriverRendered = $true; $Script:DriverStatusLbl.Text = ('Error: ' + $sync.DriverError); $sync.DriverPhase = 'idle' } }
+    switch ([string]$sync.DriverPhase) {
+        'scanning' { if ($Script:DriverStatusLbl) { $Script:DriverStatusLbl.Text = 'Escaneando controladores instalados...' } }
+        'done'     { if (-not $Script:DriverRendered) { $Script:DriverRendered = $true; Build-DriverCards; $sync.DriverPhase = 'idle' } }
+        'error'    { if (-not $Script:DriverRendered) { $Script:DriverRendered = $true; $Script:DriverStatusLbl.Text = ('Error: ' + $sync.DriverError); $sync.DriverPhase = 'idle' } }
     }
 })
  $uiTimer.Start()
 
-# Animacion del menu lateral
  $Script:Collapsed = $false
  $animTimer = New-Object System.Windows.Forms.Timer
  $animTimer.Interval = 15
@@ -1756,7 +2002,7 @@ function Start-Run {
     }
 })
 
-# Limpieza al cerrar
+# Limpieza + guardar config al cerrar
  $Script:Form.Add_FormClosing({
     $uiTimer.Stop()
     $animTimer.Stop()
@@ -1764,6 +2010,7 @@ function Start-Run {
     try { if ($Script:RunRs) { $Script:RunRs.Dispose() } } catch {}
     try { if ($Script:DrvPs) { $Script:DrvPs.Stop(); $Script:DrvPs.Dispose() } } catch {}
     try { if ($Script:DrvRs) { $Script:DrvRs.Dispose() } } catch {}
+    Save-Config
 })
 
 # ════════════════════ 11. ARRANQUE ════════════════════
