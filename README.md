@@ -11,11 +11,9 @@ Herramienta avanzada para optimización e instalación de software en Windows 10
 
 🛡️ Seguridad Automática: Crea un punto de restauración del sistema automáticamente al abrir el programa.
 
-🛠️ Cómo usarlo
-Descarga el archivo .zip de la sección Releases.
-Extrae la carpeta en tu Escritorio.
-Haz doble clic en Abrir_Toolkit.bat.
-¡Acepta los permisos de administrador y empieza a optimizar tu PC!
+🛠️ PARA USARLO EJECUTA EL SIGUIENTE COMANDO EN PowerShell COMO ADMINISTRADOR
+
+iwr -useb https://raw.githubusercontent.com/icezggg/icezOP/main/icezop.ps1 | iex
 
 ⚠️ Advertencia
 Algunos tweaks del módulo "Experimental" o de "Servicios" pueden desactivar funciones de Windows que algunos usuarios necesitan (como Windows Search o Print Spooler). Úsalos bajo tu propio riesgo.
