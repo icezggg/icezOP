@@ -14,7 +14,6 @@ if (-not ([System.Management.Automation.PSTypeName]'GradientButton').Type) {
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 public class GradientButton : Button {
@@ -138,7 +137,7 @@ public class TransparentOverlay : Panel {
 }
 
 # --- MOTOR ASÍNCRONO Y LOGS ---
- $sync = [Hashtable]::Synchronized(@{ LogQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new()); IsRunning = $false })
+ $sync = [Hashtable]::Synchronized(@{ LogQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new()); IsRunning = $false; MaxProgress = 0; CurrentProgress = 0 })
  $UITimer = New-Object System.Windows.Forms.Timer; $UITimer.Interval = 150
 function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = $texto; Color = $color }) }
 
@@ -147,7 +146,7 @@ function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = 
  $C_Accent = [System.Drawing.Color]::FromArgb(139, 92, 246); $C_TextMain = [System.Drawing.Color]::FromArgb(245, 245, 250); $C_TextSec = [System.Drawing.Color]::FromArgb(140, 140, 150)
  $FontGlobal = New-Object System.Drawing.Font("Segoe UI Variable Text", 10)
 
-# --- CARGA DE JSON (Con Fallback Integrado para garantizar funcionamiento) ---
+# --- CARGA DE JSON ---
  $AppsJson = '[ { "Name": "Google Chrome", "ID": "Google.Chrome", "Cat": "Navegadores" }, { "Name": "Firefox", "ID": "Mozilla.Firefox", "Cat": "Navegadores" }, { "Name": "Discord", "ID": "Discord.Discord", "Cat": "Comunicacion" } ]'
  $TweaksJson = '[ { "Name": "Desactivar Telemetría", "Script": "Set-ItemProperty ''HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection'' -Name ''AllowTelemetry'' -Value 0 -Type DWord -Force", "Cat": "Privacidad" }, { "Name": "Desactivar Cortana", "Script": "Set-ItemProperty ''HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search'' -Name ''AllowCortana'' -Value 0 -Type DWord -Force", "Cat": "Privacidad" } ]'
  $DriversJson = '[ { "Name": "NVIDIA GeForce RTX 4090", "Command": "pnputil /scan-devices", "Status": "Pendiente" }, { "Name": "Realtek Audio Controller", "Command": "pnputil /scan-devices", "Status": "Pendiente" }, { "Name": "Intel Core i9 Processor", "Command": "pnputil /scan-devices", "Status": "Actualizado" } ]'
@@ -162,13 +161,13 @@ try { $DriverCatalog = Get-Content -Path "$PSScriptRoot\drivers.json" -Raw -Enco
  $FormPath.AddArc(0, 0, $Radius, $Radius, 180, 90); $FormPath.AddArc($Form.Width - $Radius, 0, $Radius, $Radius, 270, 90); $FormPath.AddArc($Form.Width - $Radius, $Form.Height - $Radius, $Radius, $Radius, 0, 90); $FormPath.AddArc(0, $Form.Height - $Radius, $Radius, $Radius, 90, 90); $FormPath.CloseFigure(); $Form.Region = New-Object System.Drawing.Region($FormPath)
  $DragInfo = @{ Dragging = $false; X = 0; Y = 0 }
 
-# --- ESTRUCTURA RAIZ (Header Arriba, Split Abajo) ---
+# --- ESTRUCTURA RAIZ ---
  $RootLayout = New-Object System.Windows.Forms.TableLayoutPanel; $RootLayout.Dock = "Fill"; $RootLayout.ColumnCount = 1; $RootLayout.RowCount = 2
  $RootLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 70))) | Out-Null
  $RootLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
  $Form.Controls.Add($RootLayout)
 
-# 1. HEADER CENTRAL (icezOP)
+# 1. HEADER CENTRAL
  $PanelHeader = New-Object System.Windows.Forms.Panel; $PanelHeader.Dock = "Fill"; $PanelHeader.BackColor = $C_BgBase; $RootLayout.Controls.Add($PanelHeader, 0, 0)
  $PanelHeader.Add_MouseDown({ if($_.Button -eq 'Left'){ $script:DragInfo.Dragging = $true; $script:DragInfo.X = $_.X; $script:DragInfo.Y = $_.Y } })
  $PanelHeader.Add_MouseMove({ if($script:DragInfo.Dragging){ $Form.Left += $_.X - $script:DragInfo.X; $Form.Top += $_.Y - $script:DragInfo.Y } })
@@ -182,7 +181,7 @@ try { $DriverCatalog = Get-Content -Path "$PSScriptRoot\drivers.json" -Raw -Enco
  $btnMin.Add_Click({ $Form.WindowState = "Minimized" })
  $SepLine = New-Object System.Windows.Forms.Panel; $SepLine.Dock = "Bottom"; $SepLine.Height = 1; $SepLine.BackColor = [System.Drawing.Color]::FromArgb(50, 50, 50); $PanelHeader.Controls.Add($SepLine)
 
-# 2. SPLIT CONTAINER (Sidebar | Content)
+# 2. SPLIT CONTAINER
  $SplitCont = New-Object System.Windows.Forms.SplitContainer; $SplitCont.Dock = "Fill"; $SplitCont.SplitterWidth = 0; $SplitCont.SplitterDistance = 220; $SplitCont.BackColor = $C_BgBase; $RootLayout.Controls.Add($SplitCont, 0, 1)
 
 # 2a. SIDEBAR
@@ -208,7 +207,7 @@ try { $DriverCatalog = Get-Content -Path "$PSScriptRoot\drivers.json" -Raw -Enco
  $btnUpdateSelected = New-Object GradientButton; $btnUpdateSelected.Text = "Actualizar Seleccionados"; $btnUpdateSelected.Location = New-Object System.Drawing.Point(400, 10); $btnUpdateSelected.Size = New-Object System.Drawing.Size(220, 40); $btnUpdateSelected.Color1 = [System.Drawing.Color]::FromArgb(60, 60, 70); $btnUpdateSelected.Color2 = [System.Drawing.Color]::FromArgb(80, 80, 90); $btnUpdateSelected.Visible = $false; $PanelDriverFooter.Controls.Add($btnUpdateSelected)
  $btnUpdateAll = New-Object GradientButton; $btnUpdateAll.Text = "Actualizar Todos"; $btnUpdateAll.Location = New-Object System.Drawing.Point(650, 10); $btnUpdateAll.Size = New-Object System.Drawing.Size(200, 40); $btnUpdateAll.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnUpdateAll.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $PanelDriverFooter.Controls.Add($btnUpdateAll)
 
-# --- OVERLAY Y MODAL HOST (Efecto Blur simulado) ---
+# --- OVERLAY Y MODAL HOST ---
  $Overlay = New-Object TransparentOverlay; $Overlay.Dock = "Fill"; $Overlay.Visible = $false; $Form.Controls.Add($Overlay); $Overlay.BringToFront()
  $Overlay.Add_Click({ Hide-Modal })
  $ModalHost = New-Object System.Windows.Forms.Panel; $ModalHost.Size = New-Object System.Drawing.Size(600, 500); $ModalHost.Visible = $false; $ModalHost.BackColor = $C_Card; $Overlay.Controls.Add($ModalHost)
@@ -226,35 +225,49 @@ function Show-Modal($TitleText, $ContentControl) {
 }
 function Hide-Modal { $Overlay.Visible = $false; $ModalHost.Visible = $false }
 
-# --- LÓGICA DE NAVEGACIÓN Y RENDERIZADO DINÁMICO ---
+# --- LÓGICA DE NAVEGACIÓN Y SELECCIÓN PERSISTENTE ---
  $CurrentCheckboxes = @{}
+ $CurrentModule = "Apps"
+
 function Set-ModuleActive { param($ActiveBtn); $btnModApps.IsActive = $false; $btnModApps.ForeColor = $C_TextSec; $btnModApps.Invalidate(); $btnModTweaks.IsActive = $false; $btnModTweaks.ForeColor = $C_TextSec; $btnModTweaks.Invalidate(); $btnModDrivers.IsActive = $false; $btnModDrivers.ForeColor = $C_TextSec; $btnModDrivers.Invalidate(); $ActiveBtn.IsActive = $true; $ActiveBtn.ForeColor = $C_TextMain; $ActiveBtn.Invalidate() }
 
 function Open-CategoryModal($CatName, $Items, $IsTweak=$false) {
     $ModalContent = New-Object System.Windows.Forms.Panel; $ModalContent.BackColor = $C_Card; $ModalContent.AutoScroll = $true
     $InnerFlow = New-Object System.Windows.Forms.FlowLayoutPanel; $InnerFlow.Dock = "Fill"; $InnerFlow.FlowDirection = "TopDown"; $InnerFlow.WrapContents = $false; $InnerFlow.BackColor = $C_Card; $InnerFlow.Padding = "10,10,10,10"
-    $script:CurrentCheckboxes = @{}
+    
     foreach ($item in $Items) {
         $cb = New-Object ModernCheckBox; $cb.Text = $item.Name; $cb.Tag = if($IsTweak){$item.Script}else{$item.ID}; $cb.Size = New-Object System.Drawing.Size(500, 30); $cb.ForeColor = $C_TextMain; $cb.BackColor = $C_Card; $cb.Font = $FontGlobal; $cb.Margin = "0,5,0,5"
-        $InnerFlow.Controls.Add($cb); $script:CurrentCheckboxes[$item.Name] = $cb
+        
+        # Restaurar estado si ya estaba marcado en memoria
+        if ($script:CurrentCheckboxes.ContainsKey($item.Name)) { $cb.Checked = $true }
+        
+        # Evento para guardar/cargar estado en el diccionario global
+        $cb.Add_CheckedChanged({
+            if ($this.Checked) { $script:CurrentCheckboxes[$this.Text] = $this }
+            else { $script:CurrentCheckboxes.Remove($this.Text) }
+        }.GetNewClosure())
+        
+        $InnerFlow.Controls.Add($cb)
     }
     $ModalContent.Controls.Add($InnerFlow)
     Show-Modal $CatName.ToUpper() $ModalContent
 }
 
  $btnModApps.Add_Click({
-    Set-ModuleActive $btnModApps; $DynPanel.Visible = $true; $PanelDrivers.Visible = $false; $btnExecute.Visible = $true; $DynPanel.Controls.Clear(); $script:CurrentCheckboxes = @{}
+    Set-ModuleActive $btnModApps; $script:CurrentModule = "Apps"
+    $DynPanel.Visible = $true; $PanelDrivers.Visible = $false; $btnExecute.Visible = $true; $DynPanel.Controls.Clear()
     $Cats = $AppCatalog | ForEach-Object { $_.Cat } | Select-Object -Unique
     foreach ($cat in $Cats) {
         $Card = New-Object CategoryCard; $Card.Width = $DynPanel.Width - 60
         $Card.Header.Text = "  $($cat.ToUpper())"
-        $Card.Add_Click({ Open-CategoryModal $cat ($AppCatalog | Where-Object { $_.Cat -eq $cat }) }.GetNewClosure())
+        $Card.Add_Click({ Open-CategoryModal $cat ($AppCatalog | Where-Object { $_.Cat -eq $cat }) $false }.GetNewClosure())
         $DynPanel.Controls.Add($Card)
     }
 })
 
  $btnModTweaks.Add_Click({
-    Set-ModuleActive $btnModTweaks; $DynPanel.Visible = $true; $PanelDrivers.Visible = $false; $btnExecute.Visible = $true; $DynPanel.Controls.Clear(); $script:CurrentCheckboxes = @{}
+    Set-ModuleActive $btnModTweaks; $script:CurrentModule = "Tweaks"
+    $DynPanel.Visible = $true; $PanelDrivers.Visible = $false; $btnExecute.Visible = $true; $DynPanel.Controls.Clear()
     $Cats = $TweakCatalog | ForEach-Object { $_.Cat } | Select-Object -Unique
     foreach ($cat in $Cats) {
         $Card = New-Object CategoryCard; $Card.Width = $DynPanel.Width - 60
@@ -265,7 +278,8 @@ function Open-CategoryModal($CatName, $Items, $IsTweak=$false) {
 })
 
  $btnModDrivers.Add_Click({
-    Set-ModuleActive $btnModDrivers; $DynPanel.Visible = $false; $PanelDrivers.Visible = $true; $btnExecute.Visible = $false
+    Set-ModuleActive $btnModDrivers; $script:CurrentModule = "Drivers"
+    $DynPanel.Visible = $false; $PanelDrivers.Visible = $true; $btnExecute.Visible = $false
     $DriverListPanel.Controls.Clear()
     foreach ($drv in $DriverCatalog) {
         $isPending = ($drv.Status -ne "Actualizado")
@@ -292,29 +306,60 @@ function Open-CategoryModal($CatName, $Items, $IsTweak=$false) {
     Show-Modal "CONFIGURACIÓN" $ModalContent
 })
 
+# --- EJECUCIÓN REAL DE DRIVERS ---
  $btnUpdateAll.Add_Click({ foreach($card in $DriverListPanel.Controls) { if($card.Check) { $card.Check.Checked = $true } }; $btnUpdateSelected.PerformClick() })
- $btnUpdateSelected.Add_Click({ Write-Log "Actualizando drivers seleccionados..." "Cyan"; Start-Process pnputil -ArgumentList "/scan-devices" -Wait -NoNewWindow; Write-Log "Finalizado." "Plum" })
+ $btnUpdateSelected.Add_Click({
+    $sync.IsRunning = $true
+    Write-Log "Iniciando escaneo y actualización de drivers..." "Cyan"
+    $job = {
+        param($syncHash)
+        $syncHash.LogQueue.Enqueue(@{ Text="Ejecutando pnputil para escanear dispositivos..."; Color="Cyan" })
+        Start-Process pnputil -ArgumentList "/scan-devices" -Wait -NoNewWindow
+        $syncHash.LogQueue.Enqueue(@{ Text="Buscando actualizaciones de software vía Winget..."; Color="Cyan" })
+        Start-Process winget -ArgumentList "upgrade --all --accept-package-agreements --accept-source-agreements -h" -Wait -NoNewWindow
+        $syncHash.LogQueue.Enqueue(@{ Text="Proceso de drivers finalizado."; Color="Plum" })
+        $syncHash.IsRunning = $false
+    }
+    $runspace = [runspacefactory]::CreateRunspace(); $runspace.Open(); $ps = [powershell]::Create(); $ps.Runspace = $runspace; $ps.AddScript($job).AddArgument($sync) | Out-Null; $ps.BeginInvoke() | Out-Null
+})
 
+# --- EJECUCIÓN REAL DE APPS Y TWEAKS ---
  $btnExecute = New-Object GradientButton; $btnExecute.Text = "EJECUTAR"; $btnExecute.Dock = "Bottom"; $btnExecute.Height = 50; $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $PanelContent.Controls.Add($btnExecute)
  $btnExecute.Add_Click({
     $visibleChecks = $CurrentCheckboxes.Values | Where-Object { $_.Checked }
     if (-not $visibleChecks.Count) { Write-Log "No hay opciones marcadas." "Yellow"; return }
-    $sync.IsRunning = $true
+    
+    $sync.IsRunning = $true; $sync.MaxProgress = $visibleChecks.Count; $sync.CurrentProgress = 0
     $btnExecute.Text = "PROCESANDO..."; $btnExecute.Enabled = $false; $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(80, 50, 140); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(100, 60, 160); $btnExecute.Invalidate()
+    
     $job = {
-        param($items, $syncHash)
+        param($items, $mod, $syncHash)
         foreach ($item in $items) {
             $name = $item.Text; $tag = $item.Tag
-            $syncHash.LogQueue.Enqueue(@{ Text="Procesando: $name"; Color="Cyan" })
-            Start-Sleep -Seconds 1 # Simulación
-            $syncHash.LogQueue.Enqueue(@{ Text="OK: $name"; Color="MediumPurple" })
+            if ($mod -eq "Apps") {
+                $syncHash.LogQueue.Enqueue(@{ Text="Instalando $name (ID: $tag) vía Winget..."; Color="Cyan" })
+                try {
+                    $proc = Start-Process winget -ArgumentList "install --id $tag -e --accept-package-agreements --accept-source-agreements -h" -Wait -PassThru -NoNewWindow
+                    if ($proc.ExitCode -eq 0) { $syncHash.LogQueue.Enqueue(@{ Text="$name instalado correctamente."; Color="MediumPurple" }) }
+                    else { $syncHash.LogQueue.Enqueue(@{ Text="Error instalando $name (Código: $($proc.ExitCode))."; Color="Red" }) }
+                } catch { $syncHash.LogQueue.Enqueue(@{ Text="Excepción al instalar $name."; Color="Red" }) }
+            } elseif ($mod -eq "Tweaks") {
+                $syncHash.LogQueue.Enqueue(@{ Text="Aplicando Tweak: $name"; Color="Cyan" })
+                try {
+                    $sb = [ScriptBlock]::Create($tag.ToString())
+                    & $sb
+                    $syncHash.LogQueue.Enqueue(@{ Text="OK: $name aplicado."; Color="MediumPurple" })
+                } catch { $syncHash.LogQueue.Enqueue(@{ Text="Error en: $name -> $($_.Exception.Message)"; Color="Red" }) }
+            }
+            $syncHash.CurrentProgress++
         }
-        $syncHash.LogQueue.Enqueue(@{ Text="Finalizado."; Color="Plum" }); $syncHash.IsRunning = $false
+        $syncHash.LogQueue.Enqueue(@{ Text="--- PROCESO FINALIZADO ---"; Color="Plum" })
+        $syncHash.IsRunning = $false
     }
-    $runspace = [runspacefactory]::CreateRunspace(); $runspace.Open(); $ps = [powershell]::Create(); $ps.Runspace = $runspace; $ps.AddScript($job).AddArgument($visibleChecks).AddArgument($sync) | Out-Null; $ps.BeginInvoke() | Out-Null
+    $runspace = [runspacefactory]::CreateRunspace(); $runspace.Open(); $ps = [powershell]::Create(); $ps.Runspace = $runspace; $ps.AddScript($job).AddArgument($visibleChecks).AddArgument($CurrentModule).AddArgument($sync) | Out-Null; $ps.BeginInvoke() | Out-Null
 })
 
-# --- ANIMACIÓN DEL MENÚ LATERAL (EASING) ---
+# --- ANIMACIÓN DEL MENÚ LATERAL ---
  $IsSidebarExpanded = $true
  $AnimState = @{ Target = 220; Current = 220 }
  $AnimTimer = New-Object System.Windows.Forms.Timer; $AnimTimer.Interval = 15
@@ -333,5 +378,5 @@ function Open-CategoryModal($CatName, $Items, $IsTweak=$false) {
     if (-not $script:sync.IsRunning -and $btnExecute.Text -ne "EJECUTAR") { $btnExecute.Text = "EJECUTAR"; $btnExecute.Enabled = $true; $btnExecute.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnExecute.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnExecute.Invalidate() }
 })
  $UITimer.Start()
- $btnModApps.PerformClick() # Cargar vista inicial dinámicamente
+ $btnModApps.PerformClick()
  $Form.ShowDialog() | Out-Null
