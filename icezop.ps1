@@ -124,18 +124,17 @@ public class CategoryCard : Panel {
         this.AutoSize = true;
         this.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         this.Margin = new Padding(0, 0, 15, 15);
-        this.Width = 350; // Ancho base forzado para que no desaparezca
+        this.Width = 350;
         
         Header = new Label();
         Header.Dock = DockStyle.Top;
         Header.Height = 45;
         Header.TextAlign = ContentAlignment.MiddleLeft;
-        Header.Padding = new Padding(20, 0,0, 0);
+        Header.Padding = new Padding(20, 0, 0, 0);
         Header.Font = new Font("Segoe UI", 10, FontStyle.Bold);
         Header.ForeColor = Color.White;
         Header.Cursor = Cursors.Hand;
         Header.BackColor = Color.FromArgb(40, 40, 48);
-        Controls.Add(Header);
 
         Inner = new FlowLayoutPanel();
         Inner.Dock = DockStyle.Top;
@@ -145,7 +144,10 @@ public class CategoryCard : Panel {
         Inner.WrapContents = false;
         Inner.Visible = false;
         Inner.Padding = new Padding(20, 15, 20, 15);
+
+        // FIX: Z-Order. Agregar primero el Inner, luego el Header para que dibuje bien
         Controls.Add(Inner);
+        Controls.Add(Header);
 
         Header.Click += (s, e) => {
             IsExpanded = !IsExpanded;
@@ -271,17 +273,22 @@ public class DarkScrollPanel : FlowLayoutPanel {
 
 function Write-Log($texto, $color = "White") { $sync.LogQueue.Enqueue(@{ Text = $texto; Color = $color }) }
 
-# --- CARGA DE JSON (Mejorada para no fallar si se ejecuta por consola) ---
+# --- CARGA DE JSON (Con TLS 1.2 y Rutas Fallback) ---
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
  $RepoURL = "https://raw.githubusercontent.com/icezggg/icezOP/main"
 try {
     $AppCatalog = Invoke-RestMethod -Uri "$RepoURL/apps.json" -ErrorAction Stop
     $TweakCatalog = Invoke-RestMethod -Uri "$RepoURL/tweaks.json" -ErrorAction Stop
 } catch {
-    $localApps = ".\apps.json"; $localTweaks = ".\tweaks.json"
+    $localApps = "$PSScriptRoot\apps.json"
+    if (-not (Test-Path $localApps)) { $localApps = "$env:USERPROFILE\Desktop\apps.json" }
+    $localTweaks = "$PSScriptRoot\tweaks.json"
+    if (-not (Test-Path $localTweaks)) { $localTweaks = "$env:USERPROFILE\Desktop\tweaks.json" }
+
     if (Test-Path $localApps -and Test-Path $localTweaks) {
         $AppCatalog = Get-Content -Path $localApps -Raw | ConvertFrom-Json
         $TweakCatalog = Get-Content -Path $localTweaks -Raw | ConvertFrom-Json
-    } else { [System.Windows.Forms.MessageBox]::Show("No se pudieron descargar los JSON ni encontrarlos en la carpeta local.", "Error Fatal", 0, 16); Exit }
+    } else { [System.Windows.Forms.MessageBox]::Show("No se pudieron descargar los JSON ni encontrarlos en tu PC.", "Error Fatal", 0, 16); Exit }
 }
 
 # --- TEMA ICEZOP ---
@@ -400,13 +407,15 @@ if($LblGPU.Width -gt 170){ $LblGPU.Text = $LblGPU.Text.Substring(0, 25) + "..." 
  $btnRec = New-Object AccentButton; $btnRec.Text = "Recomendados"; $btnRec.Location = New-Object System.Drawing.Point(240, 5); $btnRec.Size = New-Object System.Drawing.Size(105, 25)
  $PanelSearch.Controls.Add($btnRec)
 
-# CONTENEDORES DINÁMICOS
- $DynPanel = New-Object DarkScrollPanel; $DynPanel.Dock = "Fill"; $DynPanel.BackColor = $C_BgBase; $DynPanel.AutoScroll = $true; $DynPanel.WrapContents = $true
- $TableLayout.Controls.Add($DynPanel, 0, 1)
+# FIX: CONTENEDOR MAESTRO PARA CONTENIDO
+ $PanelContent = New-Object System.Windows.Forms.Panel; $PanelContent.Dock = "Fill"; $PanelContent.BackColor = $C_BgBase
+ $TableLayout.Controls.Add($PanelContent, 0, 1)
 
-# PANEL DRIVERS
+ $DynPanel = New-Object DarkScrollPanel; $DynPanel.Dock = "Fill"; $DynPanel.BackColor = $C_BgBase; $DynPanel.AutoScroll = $true; $DynPanel.WrapContents = $true
+ $PanelContent.Controls.Add($DynPanel)
+
  $PanelDrivers = New-Object System.Windows.Forms.Panel; $PanelDrivers.Dock = "Fill"; $PanelDrivers.BackColor = $C_BgBase; $PanelDrivers.Visible = $false
- $TableLayout.Controls.Add($PanelDrivers, 0, 1)
+ $PanelContent.Controls.Add($PanelDrivers)
 
  $btnScanDrivers = New-Object GradientButton; $btnScanDrivers.Text = "ANALIZAR DRIVERS"; $btnScanDrivers.Size = New-Object System.Drawing.Size(300, 50); $btnScanDrivers.Location = New-Object System.Drawing.Point(260, 20); $btnScanDrivers.Color1 = [System.Drawing.Color]::FromArgb(139, 92, 246); $btnScanDrivers.Color2 = [System.Drawing.Color]::FromArgb(165, 120, 255); $btnScanDrivers.ForeColor = [System.Drawing.Color]::White; $btnScanDrivers.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold); $btnScanDrivers.Cursor = "Hand"; $btnScanDrivers.CornerRadius = 8
  $PanelDrivers.Controls.Add($btnScanDrivers)
